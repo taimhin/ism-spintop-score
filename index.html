@@ -58,54 +58,57 @@ h2 small{font-weight:400;color:var(--muted);font-size:12px}
 .btn.ghost{background:#f8fafc}
 .btn.danger{background:#fef2f2;border-color:#fecaca;color:var(--red)}
 
-/* ---------- bracket ---------- */
-.quals-wrap{margin-bottom:18px}
-.quals-row{display:grid;grid-template-columns:repeat(4,minmax(200px,1fr));gap:14px}
-.qual .match{width:100%}
-.qual-feed{font-size:11.5px;color:var(--muted);text-align:center;margin-top:5px}
+/* ---------- bracket（PDF 排版：左半 ↔ 右半 鏡像，中央決賽） ---------- */
 .bracket-scroll{overflow-x:auto;padding-bottom:8px;border:1px solid var(--line2);border-radius:12px;background:#f8fafc}
-.bracket-inner{min-width:1370px;padding:14px 22px}
-.colheads{display:grid;grid-template-columns:repeat(7,minmax(172px,1fr));column-gap:28px;margin-bottom:8px}
-.colheads .ch{text-align:center;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em}
-.bracket-grid{
-  display:grid;grid-template-columns:repeat(7,minmax(172px,1fr));
-  grid-template-rows:repeat(16,minmax(54px,auto));column-gap:28px;row-gap:2px;
+.bracket-inner{min-width:1950px;padding:14px 22px}
+.colheads-pdf{display:grid;grid-template-columns:repeat(12,132px);column-gap:28px;margin-bottom:10px}
+.colheads-pdf div{text-align:center;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em}
+.colheads-pdf .span2{grid-column:span 2}
+.bracket-grid-pdf{
+  display:grid;grid-template-columns:repeat(12,132px);grid-template-rows:repeat(32,27px);
+  column-gap:28px;row-gap:0;position:relative;
 }
-.cell{position:relative;display:flex;align-items:center}
-.cell.c2::before,.cell.c3::before,.cell.c4::before{
-  content:'';position:absolute;left:-14px;top:25%;height:50%;border-left:2px solid var(--line);
+.bcell{position:relative;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.slotbox{
+  pointer-events:auto;width:100%;height:24px;box-sizing:border-box;
+  display:flex;align-items:center;gap:5px;padding:0 7px;
+  background:#fff;border:1.5px solid var(--line);border-radius:7px;
+  position:relative;font-size:12.5px;cursor:default;
 }
-.cell.c1::after,.cell.c2::after,.cell.c3::after,.cell.c4::after{
-  content:'';position:absolute;right:-14px;top:50%;width:14px;border-top:2px solid var(--line);
-}
-.cell.c2 .match::before,.cell.c3 .match::before,.cell.c4 .match::before{
-  content:'';position:absolute;left:-14px;top:50%;width:14px;border-top:2px solid var(--line);
-}
-.match{
-  width:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;
-  overflow:hidden;cursor:pointer;transition:border-color .15s, box-shadow .15s;position:relative;
-}
-.match:hover{border-color:#93c5fd;box-shadow:0 2px 12px rgba(37,99,235,.14)}
-.match.selected{outline:3px solid var(--blue);outline-offset:1px}
-.mrow{display:flex;align-items:center;gap:6px;padding:5px 9px;min-height:27px}
-.mrow + .mrow{border-top:1px dashed var(--line2)}
-.mrow .seed{font-size:10px;color:#94a3b8;min-width:18px;text-align:right;font-variant-numeric:tabular-nums}
-.mrow .nm{flex:1;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mrow .sc{min-width:20px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#475569}
-.mrow.win{background:#dcfce7}
-.mrow.win .nm{font-weight:700;color:#166534}
-.mrow.win .sc{color:#15803d}
-.mrow.lose{opacity:.42}
-.mrow.undecided .nm{color:#94a3b8}
+.slotbox.clickable{cursor:pointer;transition:border-color .12s, box-shadow .12s}
+.slotbox.clickable:hover{border-color:#93c5fd;box-shadow:0 2px 8px rgba(37,99,235,.16)}
+.slotbox .seed{font-size:9.5px;color:#94a3b8;min-width:15px;text-align:right;font-variant-numeric:tabular-nums}
+.slotbox .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slotbox .sc{font-weight:700;color:#475569;font-size:12px;font-variant-numeric:tabular-nums}
+.slotbox.win{background:#dcfce7;border-color:#86efac}
+.slotbox.win .nm{font-weight:700;color:#166534}
+.slotbox.win .sc{color:#15803d}
+.slotbox.lose{opacity:.42}
+.slotbox.empty{border-style:dashed;background:#f8fafc}
+.slotbox.tbd .nm{color:#94a3b8}
+.slotbox.bye{background:#e0f2fe;border-color:#bae6fd}
+.slotbox.bye .byetag{font-size:9px;color:#1d4ed8;border:1px solid #bfdbfe;background:#dbeafe;border-radius:999px;padding:0 5px;line-height:13px;white-space:nowrap}
+.slotbox.sel{outline:2.5px solid var(--blue);outline-offset:1px}
+/* 連接線 */
+.slotbox.stubR::after{content:'';position:absolute;right:-14px;top:50%;width:14px;border-top:2px solid var(--line)}
+.slotbox.stubL::after{content:'';position:absolute;left:-14px;top:50%;width:14px;border-top:2px solid var(--line)}
+.bcell.recvL::before{content:'';position:absolute;left:-14px;top:25%;height:50%;border-left:2px solid var(--line)}
+.bcell.recvR::before{content:'';position:absolute;right:-14px;top:25%;height:50%;border-right:2px solid var(--line)}
+/* 中央：冠軍卡 / 季軍賽卡 */
 .champ-card{
   width:100%;text-align:center;border:2px dashed #f59e0b;border-radius:16px;
-  background:linear-gradient(180deg,#fffbeb,#fef3c7);padding:20px 12px;
+  background:linear-gradient(180deg,#fffbeb,#fef3c7);padding:14px 10px;
 }
-.champ-card .trophy{font-size:40px;line-height:1}
+.champ-card .trophy{font-size:34px;line-height:1}
 .rk-label{font-size:11px;color:var(--muted);letter-spacing:.14em;margin-top:2px}
-.champ-name{font-size:clamp(16px,1.7vw,24px);font-weight:800;color:var(--gold);margin-top:4px}
-.mini-podium{margin-top:14px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#475569}
-.mini-podium div{background:#ffffffcc;border-radius:8px;padding:4px 8px}
+.champ-name{font-size:clamp(15px,1.5vw,20px);font-weight:800;color:var(--gold);margin-top:3px}
+.podcard{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px}
+.podcard-title{font-size:12.5px;font-weight:700;color:var(--muted);text-align:center;margin-bottom:7px}
+.podcard-title small{font-weight:400}
+.t-pair{display:flex;gap:10px}
+.t-pair .slotbox{width:calc(50% - 5px)}
+.pod-lines{margin-top:9px;font-size:12.5px;color:#334155;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
+.pod-lines div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---------- board ---------- */
 .chips{display:flex;gap:6px;overflow-x:auto;padding:6px 2px 12px;align-items:stretch}
@@ -213,7 +216,6 @@ table.results td.win{font-weight:700;color:#15803d}
 
 /* ---------- narrow screens ---------- */
 @media (max-width: 860px){
-  .quals-row{grid-template-columns:repeat(2,1fr)}
   .score-stage{grid-template-columns:1fr}
   .vs{display:none}
   .podium{grid-template-columns:repeat(2,1fr)}
@@ -245,20 +247,17 @@ table.results td.win{font-weight:700;color:#15803d}
 
 <main>
   <section id="tab-bracket" class="tab-panel active">
-    <div class="quals-wrap">
-      <h2>64強 資格賽 <small>勝方晉級 32 強</small></h2>
-      <div id="qualsRow" class="quals-row"></div>
-    </div>
     <div class="bracket-scroll">
       <div class="bracket-inner">
-        <div class="colheads">
-          <div class="ch">32強</div><div class="ch">16強</div><div class="ch">8強</div>
-          <div class="ch">4強</div><div class="ch">季軍賽</div><div class="ch">決賽</div><div class="ch">冠軍</div>
+        <div class="colheads-pdf">
+          <div>64強</div><div>32強</div><div>16強</div><div>8強</div><div>4強</div>
+          <div class="span2">決賽</div>
+          <div>4強</div><div>8強</div><div>16強</div><div>32強</div><div>64強</div>
         </div>
-        <div id="bracketGrid" class="bracket-grid"></div>
+        <div id="bracketGrid" class="bracket-grid-pdf"></div>
       </div>
     </div>
-    <p class="hint" style="margin-top:10px">點擊任一場比賽即可跳到「記分板」輸入比分；綠色底 = 勝方。</p>
+    <p class="hint" style="margin-top:10px">點擊任一組框框即可到「記分板」記分；🟩＝勝方、🟦＝輪空直接晉級、虛線＝空籤位。排版依原對陣表：左半區 ↔ 右半區、中央決賽。</p>
   </section>
 
   <section id="tab-board" class="tab-panel">
@@ -1051,46 +1050,168 @@ function matchHTML(id, R){
     cardRowsHTML(id, R[id]) + '</div>';
 }
 
+/* 64強各籤位所屬的資格賽對戰（只有這 4 場真的要比） */
+const Q_SLOT = {'3':'Q1','4':'Q1','19':'Q2','20':'Q2','35':'Q3','36':'Q3','51':'Q4','52':'Q4'};
+
 function renderBracket(){
   const R = resolveAll(state.scores, state.winScore);
-
-  // 64強資格賽
-  const feeds = {'Q1':'R32-1','Q2':'R32-5','Q3':'R32-9','Q4':'R32-13'};
-  $('#qualsRow').innerHTML = ['Q1','Q2','Q3','Q4'].map(id => {
-    const feed = feeds[id];
-    const fd = MATCH_DEFS[feed];
-    return '<div class="qual">' + matchHTML(id, R) +
-      '<div class="qual-feed">勝方 → 32強 第' + fd.no + '場</div></div>';
-  }).join('');
-
-  // 主對陣圖
   const cells = [];
-  const put = (id, col, rowStart, rowSpan) => {
-    cells.push('<div class="cell c' + col + '" style="grid-column:' + col + ';grid-row:' + rowStart + ' / span ' + rowSpan + '">' +
-      matchHTML(id, R) + '</div>');
+
+  const box = (o) => {
+    const cls = ['slotbox'];
+    if (o.match) cls.push('clickable');
+    if (o.state) cls.push(o.state);
+    if (o.bye) cls.push('bye');
+    if (o.empty) cls.push('empty');
+    if (o.tbd) cls.push('tbd');
+    if (o.stubL) cls.push('stubL');
+    if (o.stubR) cls.push('stubR');
+    if (o.sel) cls.push('sel');
+    let html = '<div class="' + cls.join(' ') + '"';
+    if (o.match) html += ' data-match="' + o.match + '"';
+    if (o.title) html += ' title="' + escapeHtml(o.title) + '"';
+    html += '>';
+    if (o.seed) html += '<span class="seed">' + o.seed + '</span>';
+    html += '<span class="nm">' + escapeHtml(o.name || '') + '</span>';
+    if (o.bye) html += '<span class="byetag">輪空</span>';
+    if (o.showScore) html += '<span class="sc">' + o.score + '</span>';
+    html += '</div>';
+    return html;
   };
 
-  for (let i = 1; i <= 16; i++) put('R32-' + i, 1, i, 1);
-  for (let j = 1; j <= 8;  j++) put('R16-' + j, 2, (j-1)*2 + 1, 2);
-  for (let q = 1; q <= 4;  q++) put('QF-' + q,  3, (q-1)*4 + 1, 4);
-  for (let s = 1; s <= 2;  s++) put('SF-' + s,  4, (s-1)*8 + 1, 8);
-  put('T-1', 5, 1, 16);
-  put('F-1', 6, 1, 16);
+  const cell = (col, row, span, inner, extraCls) =>
+    '<div class="bcell ' + (extraCls || '') + '" style="grid-column:' + col + ';grid-row:' + row + ' / span ' + span + '">' + inner + '</div>';
 
-  // 冠軍卡
-  const f = R['F-1'], t = R['T-1'];
+  /* 一場比賽的兩個框（上下）；side：'L' 左半（連接線在左）、'R' 右半（連接線在右） */
+  const matchPair = (id, col, rowA, spanA, rowB, spanB, side) => {
+    const m = R[id];
+    const recv = side === 'L' ? 'recvL' : 'recvR';
+    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+    const mk = (key, seed, row, span, sc) => cell(col, row, span, box({
+      seed: seed, name: nameOf(seed, state.names), score: sc, showScore: started,
+      state: m.winner ? (m.winner === key ? 'win' : 'lose') : '',
+      match: id, tbd: !seed, stubL: true, stubR: true,
+      sel: sel === id, title: matchLabelOf(id)
+    }), recv);
+    return mk('a', m.aSeed, rowA, spanA, m.sa) + mk('b', m.bSeed, rowB, spanB, m.sb);
+  };
+
+  /* ---- 左半區：64強（32 籤） ---- */
+  for (let s = 1; s <= 32; s++){
+    const qid = Q_SLOT[s];
+    const o = {seed: s, name: state.names[s] || '', stubR: true};
+    if (qid){
+      const m = R[qid];
+      const key = (s % 2 === 1) ? 'a' : 'b';
+      o.match = qid;
+      o.title = matchLabelOf(qid);
+      o.sel = sel === qid;
+      const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+      if (m.winner) o.state = (m.winner === key) ? 'win' : 'lose';
+      o.showScore = started;
+      o.score = key === 'a' ? m.sa : m.sb;
+    } else if (state.names[s]){
+      o.bye = true;
+      o.title = '輪空：' + state.names[s] + ' 直接晉級 32 強';
+    } else {
+      o.empty = true;
+    }
+    cells.push(cell(1, s, 1, box(o)));
+  }
+
+  /* ---- 左半區：32強 → 4強 ---- */
+  for (let j = 0; j < 8; j++){
+    cells.push(matchPair('R32-' + (j + 1), 2, 4 * j + 1, 2, 4 * j + 3, 2, 'L'));
+  }
+  for (let i = 0; i < 4; i++){
+    cells.push(matchPair('R16-' + (i + 1), 3, 8 * i + 1, 4, 8 * i + 5, 4, 'L'));
+  }
+  for (let q = 0; q < 2; q++){
+    cells.push(matchPair('QF-' + (q + 1), 4, 16 * q + 1, 8, 16 * q + 9, 8, 'L'));
+  }
+  cells.push(matchPair('SF-1', 5, 1, 16, 17, 16, 'L'));
+
+  /* ---- 中央：決賽（左、右各一框） ---- */
+  {
+    const m = R['F-1'];
+    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+    const fbox = (key, seed, sc, col, stub, recv) => cell(col, 1, 32, box({
+      seed: seed, name: nameOf(seed, state.names), score: sc, showScore: started,
+      state: m.winner ? (m.winner === key ? 'win' : 'lose') : '',
+      match: 'F-1', tbd: !seed, stubL: stub === 'L', stubR: stub === 'R',
+      sel: sel === 'F-1', title: matchLabelOf('F-1')
+    }), recv);
+    cells.push(fbox('a', m.aSeed, m.sa, 6, 'L', 'recvL'));
+    cells.push(fbox('b', m.bSeed, m.sb, 7, 'R', 'recvR'));
+  }
+
+  /* ---- 右半區：4強 → 32強（鏡像） ---- */
+  cells.push(matchPair('SF-2', 8, 1, 16, 17, 16, 'R'));
+  for (let q = 0; q < 2; q++){
+    cells.push(matchPair('QF-' + (q + 3), 9, 16 * q + 1, 8, 16 * q + 9, 8, 'R'));
+  }
+  for (let i = 0; i < 4; i++){
+    cells.push(matchPair('R16-' + (i + 5), 10, 8 * i + 1, 4, 8 * i + 5, 4, 'R'));
+  }
+  for (let j = 0; j < 8; j++){
+    cells.push(matchPair('R32-' + (j + 9), 11, 4 * j + 1, 2, 4 * j + 3, 2, 'R'));
+  }
+
+  /* ---- 右半區：64強（33-64 籤） ---- */
+  for (let s = 33; s <= 64; s++){
+    const qid = Q_SLOT[s];
+    const o = {seed: s, name: state.names[s] || '', stubL: true};
+    if (qid){
+      const m = R[qid];
+      const key = (s % 2 === 1) ? 'a' : 'b';
+      o.match = qid;
+      o.title = matchLabelOf(qid);
+      o.sel = sel === qid;
+      const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+      if (m.winner) o.state = (m.winner === key) ? 'win' : 'lose';
+      o.showScore = started;
+      o.score = key === 'a' ? m.sa : m.sb;
+    } else if (state.names[s]){
+      o.bye = true;
+      o.title = '輪空：' + state.names[s] + ' 直接晉級 32 強';
+    } else {
+      o.empty = true;
+    }
+    cells.push(cell(12, s - 32, 1, box(o)));
+  }
+
+  /* ---- 中央上：冠軍卡 ---- */
+  const f = R['F-1'], t3 = R['T-1'];
   const champ = winnerNameOf(f, state.names);
   const second = loserNameOf(f, state.names);
-  const third = winnerNameOf(t, state.names);
-  const fourth = loserNameOf(t, state.names);
+  const third = winnerNameOf(t3, state.names);
+  const fourth = loserNameOf(t3, state.names);
   cells.push(
-    '<div class="cell c7" style="grid-column:7;grid-row:1 / span 16">' +
+    '<div class="bcell" style="grid-column:6 / span 2;grid-row:1 / span 5">' +
       '<div class="champ-card">' +
         '<div class="trophy">🏆</div>' +
         '<div class="rk-label">冠軍</div>' +
         '<div class="champ-name">' + (champ ? escapeHtml(champ) : '待定') + '</div>' +
-        '<div class="rk-label" style="margin-top:6px">ISM Principal\'s Winner</div>' +
-        '<div class="mini-podium">' +
+        '<div class="rk-label" style="margin-top:4px">ISM Principal\'s Winner</div>' +
+      '</div>' +
+    '</div>'
+  );
+
+  /* ---- 中央下：季軍賽＋名次 ---- */
+  const t = R['T-1'];
+  const tStarted = t.sa > 0 || t.sb > 0 || !!t.winner;
+  const tBox = (key, seed, sc) => box({
+    seed: seed, name: nameOf(seed, state.names), score: sc, showScore: tStarted,
+    state: t.winner ? (t.winner === key ? 'win' : 'lose') : '',
+    match: 'T-1', tbd: !seed, sel: sel === 'T-1', title: matchLabelOf('T-1')
+  });
+  cells.push(
+    '<div class="bcell" style="grid-column:6 / span 2;grid-row:22 / span 11">' +
+      '<div class="podcard">' +
+        '<div class="podcard-title">季軍賽 <small>（4強敗方對戰）</small></div>' +
+        '<div class="t-pair">' + tBox('a', t.aSeed, t.sa) + tBox('b', t.bSeed, t.sb) + '</div>' +
+        '<div class="pod-lines">' +
+          '<div>🥇 冠軍：' + escapeHtml(champ || '待定') + '</div>' +
           '<div>🥈 亞軍：' + escapeHtml(second || '待定') + '</div>' +
           '<div>🥉 季軍：' + escapeHtml(third || '待定') + '</div>' +
           '<div>4️⃣ 殿軍：' + escapeHtml(fourth || '待定') + '</div>' +
@@ -1331,16 +1452,15 @@ function bindEvents(){
     b.addEventListener('click', () => switchTab(b.dataset.tab));
   });
 
-  // 對陣圖點擊
+  // 對陣圖點擊（點籤位框框 → 開對應比賽）
   const openBoard = e => {
-    const card = e.target.closest('.match');
+    const card = e.target.closest('.slotbox[data-match]');
     if (!card) return;
-    sel = card.dataset.id;
+    sel = card.dataset.match;
     switchTab('board');
     window.scrollTo({top: 0, behavior: 'smooth'});
   };
   $('#bracketGrid').addEventListener('click', openBoard);
-  $('#qualsRow').addEventListener('click', openBoard);
 
   // 記分板 chips
   $('#boardChips').addEventListener('click', e => {
