@@ -31,6 +31,8 @@ header.app-header{
 h1{font-size:19px;margin:0}
 .sub{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .badge{background:var(--blue-bg);color:var(--blue);padding:1px 9px;border-radius:999px;font-weight:700}
+.badge.syncOn{background:#dcfce7;color:#15803d}
+.badge.syncOff{background:#fef3c7;color:#b45309}
 nav.tabs{display:flex;gap:6px}
 nav.tabs button{
   border:1px solid var(--line); background:#fff; color:var(--ink);
@@ -228,6 +230,7 @@ table.results td.win{font-weight:700;color:#15803d}
         <span class="badge" id="ruleBadge">先取 4 分制</span>
         <span>單淘汰 · 含季軍賽</span>
         <span id="saveInfo">尚未儲存</span>
+        <span id="syncInfo" class="badge hidden"></span>
       </div>
     </div>
   </div>
@@ -633,10 +636,131 @@ function save(){
   state.updatedAt = Date.now();
   try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(err){}
   updateSaveInfo();
+  if (!suppressPush) pushSoon();
 }
 function debounceSave(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 400);
+}
+
+/* ---------- 即時同步（場地主機模式；線上版/單機版會自動停用） ---------- */
+const SYNC = { enabled: false, rev: 0, busy: false };
+let suppressPush = false;
+let pushTimer = null;
+
+function setSyncBadge(kind){
+  const el = document.getElementById('syncInfo');
+  if (!el) return;
+  if (kind === 'on'){ el.className = 'badge syncOn'; el.textContent = '🟢 即時同步中'; }
+  else if (kind === 'off'){ el.className = 'badge syncOff'; el.textContent = '🟠 連線中斷（單機中）'; }
+  else { el.className = 'badge hidden'; el.textContent = ''; }
+}
+
+function applyStateObject(obj){
+  if (!obj || typeof obj !== 'object') return false;
+  if (obj.title) state.title = String(obj.title);
+  if (Number.isFinite(obj.winScore)) state.winScore = Math.max(1, Math.min(99, Math.floor(obj.winScore)));
+  if (obj.names && typeof obj.names === 'object'){
+    for (const key in obj.names){
+      if (key in DEFAULT_NAMES) state.names[key] = String(obj.names[key]);
+    }
+  }
+  state.scores = sanitizeScores(obj.scores);
+  return true;
+}
+
+function snapshotState(){
+  return {
+    title: state.title,
+    winScore: state.winScore,
+    names: state.names,
+    scores: state.scores
+  };
+}
+
+async function pushServer(){
+  if (!SYNC.enabled || SYNC.busy) return true;
+  SYNC.busy = true;
+  try{
+    const r = await fetch('api/state', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({baseRev: SYNC.rev, state: snapshotState()})
+    });
+    if (r.status === 409){
+      const j = await r.json();
+      SYNC.rev = j.rev;
+      suppressPush = true;
+      applyStateObject(j.state);
+      save();
+      renderAll({skipSettings: true});
+      suppressPush = false;
+      toast('偵測到其他裝置的更新，已載入最新比分（請確認剛才的操作是否還需要）');
+      return false;
+    }
+    if (r.ok){
+      const j = await r.json();
+      SYNC.rev = j.rev;
+      setSyncBadge('on');
+      return true;
+    }
+    setSyncBadge('off');
+    return false;
+  }catch(err){
+    setSyncBadge('off');
+    return false;
+  }finally{
+    SYNC.busy = false;
+  }
+}
+
+function pushSoon(){
+  if (!SYNC.enabled) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushServer, 300);
+}
+
+async function pollServer(){
+  if (!SYNC.enabled || SYNC.busy) return;
+  try{
+    const r = await fetch('api/state', {cache: 'no-store'});
+    if (!r.ok) throw new Error('bad status');
+    const j = await r.json();
+    setSyncBadge('on');
+    if (j.rev !== SYNC.rev){
+      suppressPush = true;
+      SYNC.rev = j.rev;
+      applyStateObject(j.state);
+      save();
+      renderAll({skipSettings: true});
+      suppressPush = false;
+    }
+  }catch(err){
+    setSyncBadge('off');
+  }
+}
+
+async function initSync(){
+  try{
+    const r = await fetch('api/state', {cache: 'no-store'});
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j || typeof j.rev !== 'number') return;
+    SYNC.enabled = true;
+    SYNC.rev = j.rev;
+    const serverHasData = j.state && j.state.scores && Object.keys(j.state.scores).length > 0;
+    if (serverHasData){
+      suppressPush = true;
+      applyStateObject(j.state);
+      save();
+      renderAll({skipSettings: true});
+      suppressPush = false;
+    } else if (Object.keys(state.scores).length > 0){
+      await pushServer();
+    }
+    setSyncBadge('on');
+    setInterval(pollServer, 2000);
+  }catch(err){ /* 單機模式，不做任何事 */ }
 }
 
 /* ===================== 小工具 ===================== */
@@ -1222,6 +1346,7 @@ sel = firstReady(state.scores, state.winScore);
 bindEvents();
 renderAll();
 if (sharedLoaded){ save(); toast('已載入分享連結中的比分'); }
+initSync();
 </script>
 </body>
 </html>
