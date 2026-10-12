@@ -695,6 +695,7 @@ const CLOUD_LIBS = [
 let cloudClient = null;
 let cloudPending = false;
 let cloudGotInitial = false;
+let cloudHeartbeat = null;
 const cloudDeviceId = 'd' + Math.random().toString(16).slice(2, 10);
 
 function loadScriptTag(src){
@@ -780,6 +781,14 @@ async function tryCloud(){
       cloudClient = client;
       SYNC.enabled = true;
       SYNC.kind = 'cloud';
+      if (!cloudHeartbeat){
+        cloudHeartbeat = setInterval(() => {
+          if (SYNC.kind === 'cloud' && cloudClient && cloudClient.connected && Object.keys(state.scores).length > 0){
+            const doc = {rev: SYNC.rev, by: cloudDeviceId, state: snapshotState(), t: Date.now()};
+            try{ cloudClient.publish(CLOUD_TOPIC, JSON.stringify(doc), {qos: 1, retain: true}); }catch(err){}
+          }
+        }, 60000);
+      }
       return true;
     }
   }
