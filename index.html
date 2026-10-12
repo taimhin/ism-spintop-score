@@ -33,6 +33,7 @@ h1{font-size:19px;margin:0}
 .badge{background:var(--blue-bg);color:var(--blue);padding:1px 9px;border-radius:999px;font-weight:700}
 .badge.syncOn{background:#dcfce7;color:#15803d}
 .badge.syncOff{background:#fef3c7;color:#b45309}
+.badge.syncCloud{background:#e0e7ff;color:#4338ca}
 nav.tabs{display:flex;gap:6px}
 nav.tabs button{
   border:1px solid var(--line); background:#fff; color:var(--ink);
@@ -651,8 +652,10 @@ let pushTimer = null;
 function setSyncBadge(kind){
   const el = document.getElementById('syncInfo');
   if (!el) return;
-  if (kind === 'on'){ el.className = 'badge syncOn'; el.textContent = '🟢 即時同步中'; }
-  else if (kind === 'off'){ el.className = 'badge syncOff'; el.textContent = '🟠 連線中斷（單機中）'; }
+  if (kind === 'cloud'){ el.className = 'badge syncCloud'; el.textContent = '☁️ 雲端同步中'; }
+  else if (kind === 'on' || kind === 'lan'){ el.className = 'badge syncOn'; el.textContent = '🟢 場地同步中'; }
+  else if (kind === 'wait'){ el.className = 'badge syncOff'; el.textContent = '⏳ 連線中…'; }
+  else if (kind === 'off'){ el.className = 'badge syncOff'; el.textContent = '🟠 離線（單機中）'; }
   else { el.className = 'badge hidden'; el.textContent = ''; }
 }
 
@@ -676,6 +679,111 @@ function snapshotState(){
     names: state.names,
     scores: state.scores
   };
+}
+
+/* ---------- 雲端即時同步（MQTT 公共通道，免帳號；GitHub 線上版用） ---------- */
+const CLOUD_TOPIC = 'ism-spintop-7f3a9c2e-42d8/state';
+const CLOUD_BROKERS = [
+  'wss://broker.hivemq.com:8884/mqtt',
+  'wss://broker.emqx.io:8084/mqtt',
+  'wss://test.mosquitto.org:8081/mqtt'
+];
+const CLOUD_LIBS = [
+  'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js',
+  'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js'
+];
+let cloudClient = null;
+let cloudPending = false;
+let cloudGotInitial = false;
+const cloudDeviceId = 'd' + Math.random().toString(16).slice(2, 10);
+
+function loadScriptTag(src){
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('load fail'));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadMqttLib(){
+  if (window.mqtt) return true;
+  for (const src of CLOUD_LIBS){
+    try{
+      await loadScriptTag(src);
+      if (window.mqtt) return true;
+    }catch(err){}
+  }
+  return false;
+}
+
+function cloudPublishNow(){
+  if (!cloudClient || !cloudClient.connected){ cloudPending = true; return false; }
+  SYNC.rev += 1;
+  const doc = {rev: SYNC.rev, by: cloudDeviceId, state: snapshotState(), t: Date.now()};
+  try{
+    cloudClient.publish(CLOUD_TOPIC, JSON.stringify(doc), {qos: 1, retain: true});
+  }catch(err){ cloudPending = true; return false; }
+  return true;
+}
+
+function onCloudMessage(topic, payload){
+  cloudGotInitial = true;
+  let doc;
+  try{ doc = JSON.parse(payload.toString()); }catch(err){ return; }
+  if (!doc || typeof doc.rev !== 'number') return;
+  if (doc.by === cloudDeviceId) return;
+  if (doc.rev <= SYNC.rev) return;
+  SYNC.rev = doc.rev;
+  suppressPush = true;
+  if (doc.state) applyStateObject(doc.state);
+  save();
+  renderAll({skipSettings: true});
+  suppressPush = false;
+}
+
+function cloudConn(broker){
+  return new Promise(resolve => {
+    let settled = false;
+    let client = null;
+    const finish = ok => { if (!settled){ settled = true; clearTimeout(to); resolve(ok ? client : null); } };
+    const to = setTimeout(() => { if (!settled){ try{ if (client) client.end(true); }catch(err){} finish(false); } }, 9000);
+    try{
+      client = window.mqtt.connect(broker, {
+        clientId: 'ismtt_' + cloudDeviceId + Math.random().toString(16).slice(2, 6),
+        keepalive: 30, reconnectPeriod: 4000, connectTimeout: 6000, clean: true
+      });
+    }catch(err){ finish(false); return; }
+    client.on('connect', () => {
+      client.subscribe(CLOUD_TOPIC, {qos: 1});
+      setSyncBadge('cloud');
+      if (cloudPending){ cloudPending = false; cloudPublishNow(); }
+      setTimeout(() => {
+        if (!cloudGotInitial && Object.keys(state.scores).length > 0) cloudPublishNow();
+      }, 1800);
+      finish(true);
+    });
+    client.on('message', onCloudMessage);
+    client.on('close', () => { if (SYNC.kind === 'cloud') setSyncBadge('off'); });
+    client.on('error', () => {
+      if (!settled){ try{ client.end(true); }catch(err){} finish(false); }
+    });
+  });
+}
+
+async function tryCloud(){
+  if (!await loadMqttLib()) return false;
+  for (const broker of CLOUD_BROKERS){
+    const client = await cloudConn(broker);
+    if (client){
+      cloudClient = client;
+      SYNC.enabled = true;
+      SYNC.kind = 'cloud';
+      return true;
+    }
+  }
+  return false;
 }
 
 async function pushServer(){
@@ -716,6 +824,11 @@ async function pushServer(){
 
 function pushSoon(){
   if (!SYNC.enabled) return;
+  if (SYNC.kind === 'cloud'){
+    if (cloudClient && cloudClient.connected) cloudPublishNow();
+    else cloudPending = true;
+    return;
+  }
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushServer, 300);
 }
@@ -741,26 +854,40 @@ async function pollServer(){
 }
 
 async function initSync(){
-  try{
-    const r = await fetch('api/state', {cache: 'no-store'});
-    if (!r.ok) return;
-    const j = await r.json();
-    if (!j || typeof j.rev !== 'number') return;
-    SYNC.enabled = true;
-    SYNC.rev = j.rev;
-    const serverHasData = j.state && j.state.scores && Object.keys(j.state.scores).length > 0;
-    if (serverHasData){
-      suppressPush = true;
-      applyStateObject(j.state);
-      save();
-      renderAll({skipSettings: true});
-      suppressPush = false;
-    } else if (Object.keys(state.scores).length > 0){
-      await pushServer();
-    }
-    setSyncBadge('on');
-    setInterval(pollServer, 2000);
-  }catch(err){ /* 單機模式，不做任何事 */ }
+  setSyncBadge('wait');
+  const qs = location.search;
+  const forceLan = /[?&]lan/.test(qs) || /[?&]local/.test(qs);
+  const forceCloud = /[?&]cloud/.test(qs);
+  // 場地主機探測（與雲端並行，兩者都失敗才變單機）
+  const lanProbe = fetch('api/state', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!forceLan){
+    const cloudOk = await tryCloud();
+    if (cloudOk) return;
+  }
+  if (!forceCloud){
+    try{
+      const j = await lanProbe;
+      if (j && typeof j.rev === 'number'){
+        SYNC.enabled = true;
+        SYNC.kind = 'lan';
+        SYNC.rev = j.rev;
+        const serverHasData = j.state && j.state.scores && Object.keys(j.state.scores).length > 0;
+        if (serverHasData){
+          suppressPush = true;
+          applyStateObject(j.state);
+          save();
+          renderAll({skipSettings: true});
+          suppressPush = false;
+        } else if (Object.keys(state.scores).length > 0){
+          await pushServer();
+        }
+        setSyncBadge('lan');
+        setInterval(pollServer, 2000);
+        return;
+      }
+    }catch(err){}
+  }
+  setSyncBadge(null); // 單機模式：隱藏徽章
 }
 
 /* ===================== 小工具 ===================== */
