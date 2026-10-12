@@ -109,6 +109,14 @@ h2 small{font-weight:400;color:var(--muted);font-size:12px}
 .t-pair .slotbox{width:calc(50% - 5px)}
 .pod-lines{margin-top:9px;font-size:12.5px;color:#334155;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
 .pod-lines div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 縮放工具列 / 模式切換 */
+.bracket-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.btn.sm{padding:5px 11px;font-size:13px}
+.zoom-label{font-size:13px;color:var(--muted);min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+.mode-switch{margin-left:auto;display:flex;border:1.5px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+.ms-btn{border:none;background:transparent;padding:7px 14px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink)}
+.ms-btn.active{background:var(--blue);color:#fff}
+.pscore.winmode{font-size:clamp(26px,4vw,56px);letter-spacing:.02em}
 
 /* ---------- board ---------- */
 .chips{display:flex;gap:6px;overflow-x:auto;padding:6px 2px 12px;align-items:stretch}
@@ -247,6 +255,14 @@ table.results td.win{font-weight:700;color:#15803d}
 
 <main>
   <section id="tab-bracket" class="tab-panel active">
+    <div class="bracket-toolbar">
+      <button class="btn ghost sm" id="btnZoomOut" title="縮小">－</button>
+      <span class="zoom-label" id="zoomLabel">100%</span>
+      <button class="btn ghost sm" id="btnZoomIn" title="放大">＋</button>
+      <button class="btn ghost sm" id="btnZoomFit">🔍 符合視窗</button>
+      <button class="btn ghost sm" id="btnZoom100">100%</button>
+      <button class="btn ghost sm" id="btnFullscreen">⛶ 全螢幕</button>
+    </div>
     <div class="bracket-scroll">
       <div class="bracket-inner">
         <div class="colheads-pdf">
@@ -267,6 +283,10 @@ table.results td.win{font-weight:700;color:#15803d}
       <div class="board-head">
         <span id="boardRound" class="board-round"></span>
         <span id="boardHint" class="board-hint"></span>
+        <span class="mode-switch">
+          <button class="ms-btn" data-mode="score">輸入分數</button>
+          <button class="ms-btn" data-mode="win">點選勝利者</button>
+        </span>
       </div>
       <div class="score-stage">
         <div class="side" id="sideA">
@@ -314,6 +334,12 @@ table.results td.win{font-weight:700;color:#15803d}
       <h2>基本設定</h2>
       <label>比賽名稱 <input id="setTitle" type="text" style="flex:1;max-width:420px"></label>
       <label>每場先取分數 <input id="setWinScore" type="number" min="1" max="99" style="width:90px"></label>
+      <label>操作模式
+        <select id="setUiMode" style="padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit">
+          <option value="score">輸入分數（先取 4 分制）</option>
+          <option value="win">點選勝利者（不需輸入分數）</option>
+        </select>
+      </label>
       <p class="hint">預設為 4 分（依對陣表規定：先得 4 分者晉級）。</p>
     </div>
     <div class="card">
@@ -439,8 +465,10 @@ function decideWinner(sa, sb, k){
   return null;
 }
 
-/* 將所有比分換算成完整對陣狀態：seeds + 勝負 */
-function resolveAll(scores, k){
+/* 將所有比分換算成完整對陣狀態：seeds + 勝負
+   winners：點選模式宣告的勝方（{id:'a'|'b'}）；省略時讀取全域 state.winners */
+function resolveAll(scores, k, winners){
+  if (winners === undefined && typeof state !== 'undefined' && state) winners = state.winners || {};
   const R = {};
   const resSrc = (src) => {
     if (src.seed) return src.seed;
@@ -455,14 +483,16 @@ function resolveAll(scores, k){
     const sc = scores[id] || [0,0];
     const aSeed = resSrc(d.a);
     const bSeed = resSrc(d.b);
-    R[id] = {aSeed, bSeed, sa:sc[0], sb:sc[1], winner:decideWinner(sc[0], sc[1], k)};
+    const w = decideWinner(sc[0], sc[1], k) || (winners && winners[id]) || null;
+    R[id] = {aSeed, bSeed, sa:sc[0], sb:sc[1], winner:w};
   }
   return R;
 }
 
-/* 套用 simScores 後，哪些「已有比分」的比賽會因為參賽者變動而必須被清除 */
+/* 套用 simScores 後，哪些「已有比分或已宣告勝方」的比賽會因為參賽者變動而必須被清除 */
 function computeCleared(scores, simScores, kBefore, kAfter){
   const before = resolveAll(scores, kBefore);
+  const wmap = (typeof state !== 'undefined' && state) ? (state.winners || {}) : {};
   const C = new Set();
   let dirty = true;
   while (dirty){
@@ -474,7 +504,7 @@ function computeCleared(scores, simScores, kBefore, kAfter){
       const b = before[mid], a2 = after[mid];
       if (b.aSeed !== a2.aSeed || b.bSeed !== a2.bSeed){
         const sc = simScores[mid];
-        if (sc && (sc[0] > 0 || sc[1] > 0) && !C.has(mid)){ C.add(mid); dirty = true; }
+        if (((sc && (sc[0] > 0 || sc[1] > 0)) || wmap[mid]) && !C.has(mid)){ C.add(mid); dirty = true; }
       }
     }
   }
@@ -521,18 +551,18 @@ function buildResultRows(scores, k, names){
   return ORDER.map(id => {
     const d = MATCH_DEFS[id], m = R[id];
     const aName = nameOf(m.aSeed, names), bName = nameOf(m.bSeed, names);
-    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
-    const score = started ? (m.sa + ' : ' + m.sb) : '—';
+    const hasScores = m.sa > 0 || m.sb > 0;
+    const score = hasScores ? (m.sa + ' : ' + m.sb) : '—';
     let status;
     if (m.winner) status = '已完成';
     else if (!m.aSeed || !m.bSeed) status = '待定';
-    else if (started) status = '進行中';
+    else if (hasScores) status = '進行中';
     else status = '未開始';
     const winName = m.winner ? (m.winner === 'a' ? aName : bName) : '—';
     return {
       id, round: ROUND_INFO[d.r].label, no: d.no,
       aName, bName, score, winName, status,
-      started, done: !!m.winner, ready: !!(m.aSeed && m.bSeed)
+      started: hasScores, done: !!m.winner, ready: !!(m.aSeed && m.bSeed)
     };
   });
 }
@@ -549,6 +579,7 @@ function freshState(){
     winScore: 4,
     names: {...DEFAULT_NAMES},
     scores: {},
+    winners: {},
     updatedAt: null
   };
 }
@@ -562,6 +593,18 @@ function sanitizeScores(raw){
       if (Array.isArray(v) && v.length === 2 && v.every(n => Number.isFinite(n) && n >= 0)){
         out[id] = [Math.floor(v[0]), Math.floor(v[1])];
       }
+    }
+  }
+  return out;
+}
+
+function sanitizeWinners(raw){
+  const out = {};
+  if (raw && typeof raw === 'object'){
+    for (const id in raw){
+      if (!MATCH_DEFS[id]) continue;
+      const v = raw[id];
+      if (v === 'a' || v === 'b') out[id] = v;
     }
   }
   return out;
@@ -582,6 +625,7 @@ function loadState(){
         }
       }
       st.scores = sanitizeScores(obj.scores);
+      st.winners = sanitizeWinners(obj.winners);
       st.updatedAt = obj.updatedAt || null;
     }
     return st;
@@ -607,9 +651,17 @@ function b64decodeUtf8(b64){
   return new TextDecoder().decode(bytes);
 }
 function buildShareLink(){
-  const data = {title: state.title, winScore: state.winScore, names: state.names, scores: state.scores};
+  const data = {title: state.title, winScore: state.winScore, names: state.names, scores: state.scores, winners: state.winners};
   return location.href.split('#')[0] + '#s=' + b64encodeUtf8(JSON.stringify(data));
 }
+
+/* 操作模式：'score' 輸入分數 / 'win' 點選勝利者（每台裝置各自記住） */
+let uiMode = (function(){
+  const q = location.search;
+  if (/[?&](win|winner)/.test(q)) return 'win';
+  if (/[?&]score/.test(q)) return 'score';
+  try{ return localStorage.getItem('ism-ui-mode') || 'score'; }catch(err){ return 'score'; }
+})();
 let sharedLoaded = false;
 (function applySharedState(){
   const m = location.hash.match(/[#&]s=([^&]+)/);
@@ -625,6 +677,7 @@ let sharedLoaded = false;
         }
       }
       state.scores = sanitizeScores(obj.scores);
+      state.winners = sanitizeWinners(obj.winners);
       sharedLoaded = true;
     }
   }catch(err){}
@@ -668,6 +721,7 @@ function applyStateObject(obj){
     }
   }
   state.scores = sanitizeScores(obj.scores);
+  state.winners = sanitizeWinners(obj.winners);
   return true;
 }
 
@@ -676,7 +730,8 @@ function snapshotState(){
     title: state.title,
     winScore: state.winScore,
     names: state.names,
-    scores: state.scores
+    scores: state.scores,
+    winners: state.winners
   };
 }
 
@@ -962,7 +1017,7 @@ async function trySetScores(id, next){
   if (next[0] === cur[0] && next[1] === cur[1]) return;
 
   // 已完成的比賽不能繼續加分（改分請先減分或重設）
-  const curWin = decideWinner(cur[0], cur[1], k);
+  const curWin = decideWinner(cur[0], cur[1], k) || (state.winners && state.winners[id]);
   if (curWin && (next[0] > cur[0] || next[1] > cur[1])){
     toast('此場已完成，如需修改請先按「重設此場」');
     return;
@@ -986,8 +1041,62 @@ async function trySetScores(id, next){
   C.forEach(m => delete ns[m]);
   if (ns[id] && ns[id][0] === 0 && ns[id][1] === 0) delete ns[id];
   state.scores = ns;
+  // 改為輸入分數時，清掉同場的「點選勝利者」宣告
+  if (ns[id]){
+    const nw = {...state.winners};
+    delete nw[id];
+    state.winners = nw;
+  }
   save();
   renderAll();
+}
+
+/* 點選勝利者／取消結果：套用變更並處理後續清除 */
+async function applyResultChange(mutator){
+  const curScores = state.scores, curWinners = state.winners || {};
+  const nScores = {...curScores}, nWinners = {...curWinners};
+  mutator(nScores, nWinners);
+  const B = resolveAll(curScores, state.winScore, curWinners);
+  const C = new Set();
+  let dirty = true;
+  while (dirty){
+    dirty = false;
+    const simS = {...nScores}, simW = {...nWinners};
+    C.forEach(m => { delete simS[m]; delete simW[m]; });
+    const A2 = resolveAll(simS, state.winScore, simW);
+    for (const mid of ORDER){
+      const b = B[mid], a2 = A2[mid];
+      if (b.aSeed !== a2.aSeed || b.bSeed !== a2.bSeed){
+        const sc = nScores[mid], wn = nWinners[mid];
+        if (((sc && (sc[0] > 0 || sc[1] > 0)) || wn) && !C.has(mid)){ C.add(mid); dirty = true; }
+      }
+    }
+  }
+  if (C.size){
+    const list = [...C].map(mid => '・' + matchLabelOf(mid)).join('\n');
+    const ok = await confirmModal({
+      title: '需要清除後續結果',
+      message: '這項變更會影響下列已記錄的比賽，將被重設：\n\n' + list + '\n\n確定要繼續嗎？',
+      confirmText: '確定並清除',
+      danger: true
+    });
+    if (!ok) return false;
+  }
+  C.forEach(m => { delete nScores[m]; delete nWinners[m]; });
+  state.scores = nScores;
+  state.winners = nWinners;
+  save();
+  renderAll();
+  return true;
+}
+
+async function declareWinner(id, side){
+  const R = resolveAll(state.scores, state.winScore);
+  const m = R[id];
+  if (!m.aSeed || !m.bSeed){ toast('此場選手尚未確定'); return; }
+  const name = side === 'a' ? nameOf(m.aSeed, state.names) : nameOf(m.bSeed, state.names);
+  const ok = await applyResultChange((s, w) => { delete s[id]; w[id] = side; });
+  if (ok) toast('🏆 ' + name + ' 勝出！');
 }
 
 async function trySetWinScore(k2){
@@ -1024,31 +1133,10 @@ function switchTab(name){
   });
   if (name === 'board' && !sel) sel = firstReady(state.scores, state.winScore);
   renderAll();
+  if (name === 'bracket') setTimeout(applyZoom, 30);
 }
 
 /* ===================== 對陣圖 ===================== */
-
-function cardRowsHTML(id, m){
-  const cols = [['a', m.aSeed, m.sa], ['b', m.bSeed, m.sb]];
-  return cols.map(([side, seed, sc]) => {
-    let cls = '';
-    if (m.winner) cls = (m.winner === side ? 'win' : 'lose');
-    else if (!seed) cls = 'undecided';
-    const nm = escapeHtml(nameOf(seed, state.names));
-    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
-    const scTxt = started ? sc : '–';
-    return '<div class="mrow ' + cls + '">' +
-      '<span class="seed">' + (seed || '') + '</span>' +
-      '<span class="nm" title="' + nm + '">' + nm + '</span>' +
-      '<span class="sc">' + scTxt + '</span>' +
-    '</div>';
-  }).join('');
-}
-
-function matchHTML(id, R){
-  return '<div class="match' + (sel === id ? ' selected' : '') + '" data-id="' + id + '" title="' + escapeHtml(matchLabelOf(id)) + '">' +
-    cardRowsHTML(id, R[id]) + '</div>';
-}
 
 /* 64強各籤位所屬的資格賽對戰（只有這 4 場真的要比） */
 const Q_SLOT = {'3':'Q1','4':'Q1','19':'Q2','20':'Q2','35':'Q3','36':'Q3','51':'Q4','52':'Q4'};
@@ -1086,9 +1174,9 @@ function renderBracket(){
   const matchPair = (id, col, rowA, spanA, rowB, spanB, side) => {
     const m = R[id];
     const recv = side === 'L' ? 'recvL' : 'recvR';
-    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+    const hasScores = m.sa > 0 || m.sb > 0;
     const mk = (key, seed, row, span, sc) => cell(col, row, span, box({
-      seed: seed, name: nameOf(seed, state.names), score: sc, showScore: started,
+      seed: seed, name: nameOf(seed, state.names), score: sc, showScore: hasScores,
       state: m.winner ? (m.winner === key ? 'win' : 'lose') : '',
       match: id, tbd: !seed, stubL: true, stubR: true,
       sel: sel === id, title: matchLabelOf(id)
@@ -1106,9 +1194,8 @@ function renderBracket(){
       o.match = qid;
       o.title = matchLabelOf(qid);
       o.sel = sel === qid;
-      const started = m.sa > 0 || m.sb > 0 || !!m.winner;
       if (m.winner) o.state = (m.winner === key) ? 'win' : 'lose';
-      o.showScore = started;
+      o.showScore = m.sa > 0 || m.sb > 0;
       o.score = key === 'a' ? m.sa : m.sb;
     } else if (state.names[s]){
       o.bye = true;
@@ -1134,9 +1221,9 @@ function renderBracket(){
   /* ---- 中央：決賽（左、右各一框） ---- */
   {
     const m = R['F-1'];
-    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+    const hasScores = m.sa > 0 || m.sb > 0;
     const fbox = (key, seed, sc, col, stub, recv) => cell(col, 1, 32, box({
-      seed: seed, name: nameOf(seed, state.names), score: sc, showScore: started,
+      seed: seed, name: nameOf(seed, state.names), score: sc, showScore: hasScores,
       state: m.winner ? (m.winner === key ? 'win' : 'lose') : '',
       match: 'F-1', tbd: !seed, stubL: stub === 'L', stubR: stub === 'R',
       sel: sel === 'F-1', title: matchLabelOf('F-1')
@@ -1167,9 +1254,8 @@ function renderBracket(){
       o.match = qid;
       o.title = matchLabelOf(qid);
       o.sel = sel === qid;
-      const started = m.sa > 0 || m.sb > 0 || !!m.winner;
       if (m.winner) o.state = (m.winner === key) ? 'win' : 'lose';
-      o.showScore = started;
+      o.showScore = m.sa > 0 || m.sb > 0;
       o.score = key === 'a' ? m.sa : m.sb;
     } else if (state.names[s]){
       o.bye = true;
@@ -1199,7 +1285,7 @@ function renderBracket(){
 
   /* ---- 中央下：季軍賽＋名次 ---- */
   const t = R['T-1'];
-  const tStarted = t.sa > 0 || t.sb > 0 || !!t.winner;
+  const tStarted = t.sa > 0 || t.sb > 0;
   const tBox = (key, seed, sc) => box({
     seed: seed, name: nameOf(seed, state.names), score: sc, showScore: tStarted,
     state: t.winner ? (t.winner === key ? 'win' : 'lose') : '',
@@ -1221,6 +1307,34 @@ function renderBracket(){
   );
 
   $('#bracketGrid').innerHTML = cells.join('');
+}
+
+/* ---------- 對陣圖縮放 ---------- */
+let zoomMode = (function(){ try{ return localStorage.getItem('ism-zoom') || 'fit'; }catch(err){ return 'fit'; } })();
+function saveZoomPref(){ try{ localStorage.setItem('ism-zoom', String(zoomMode)); }catch(err){} }
+function getZoom(){
+  const inner = document.querySelector('.bracket-inner');
+  return parseFloat(inner.style.zoom || '1') || 1;
+}
+function setZoom(z){
+  zoomMode = Math.round(z * 100) / 100;
+  saveZoomPref();
+  applyZoom();
+}
+function applyZoom(){
+  const inner = document.querySelector('.bracket-inner');
+  const scroll = document.querySelector('.bracket-scroll');
+  if (!inner || !scroll) return;
+  let z;
+  if (zoomMode === 'fit'){
+    const base = 1950;
+    z = Math.min(1, Math.max(0.3, (scroll.clientWidth - 6) / base));
+  } else {
+    z = parseFloat(zoomMode) || 1;
+  }
+  inner.style.zoom = z;
+  const label = document.getElementById('zoomLabel');
+  if (label) label.textContent = Math.round(z * 100) + '%';
 }
 
 /* ===================== 記分板 ===================== */
@@ -1247,7 +1361,8 @@ function renderChips(){
     else if (m.aSeed && m.bSeed) cls += ' ready';
     if (sel === id) cls += ' selected';
     const aN = nameOf(m.aSeed, state.names), bN = nameOf(m.bSeed, state.names);
-    const midTxt = m.winner ? ' ✓ ' + m.sa + ':' + m.sb + ' ' : ' vs ';
+    const hasSc = m.sa > 0 || m.sb > 0;
+    const midTxt = m.winner ? (hasSc ? (' ✓ ' + m.sa + ':' + m.sb + ' ') : ' ✓ ') : ' vs ';
     html += '<button class="' + cls + '" data-id="' + id + '">' +
       '<span class="ct">' + chipTitle(id) + '</span>' +
       '<span class="cn">' + escapeHtml(aN + midTxt + bN) + '</span>' +
@@ -1284,14 +1399,29 @@ function renderBoard(){
   const ready = !!(m.aSeed && m.bSeed);
 
   $('#boardRound').textContent = chipTitle(sel);
-  $('#boardHint').textContent = '先取 ' + state.winScore + ' 分 · 點選選手區塊即可 +1 分';
+  const winMode = uiMode === 'win';
+  $('#boardHint').textContent = winMode
+    ? '點選選手的框框＝宣告他勝出（不需輸入分數）'
+    : ('先取 ' + state.winScore + ' 分 · 點選選手區塊即可 +1 分');
+
+  // 模式切換鈕狀態
+  document.querySelectorAll('.ms-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === uiMode));
 
   $('#seedA').textContent = m.aSeed ? ('#' + m.aSeed) : '';
   $('#seedB').textContent = m.bSeed ? ('#' + m.bSeed) : '';
   $('#nameA').textContent = nameOf(m.aSeed, state.names);
   $('#nameB').textContent = nameOf(m.bSeed, state.names);
-  $('#scoreA').textContent = m.sa;
-  $('#scoreB').textContent = m.sb;
+  if (winMode){
+    $('#scoreA').textContent = !ready ? '' : (m.winner === 'a' ? '🏆 勝出' : (m.winner ? '' : '點我勝出'));
+    $('#scoreB').textContent = !ready ? '' : (m.winner === 'b' ? '🏆 勝出' : (m.winner ? '' : '點我勝出'));
+  } else {
+    $('#scoreA').textContent = m.sa;
+    $('#scoreB').textContent = m.sb;
+  }
+  $('#scoreA').className = 'pscore' + (winMode ? ' winmode' : '');
+  $('#scoreB').className = 'pscore' + (winMode ? ' winmode' : '');
+  $('#btnMinusA').classList.toggle('hidden', winMode);
+  $('#btnMinusB').classList.toggle('hidden', winMode);
 
   const sideA = $('#sideA'), sideB = $('#sideB');
   sideA.className = 'side' + (m.winner === 'a' ? ' winner' : '') + (m.winner === 'b' ? ' loser' : '') + (!ready || m.winner ? ' disabled' : '');
@@ -1362,6 +1492,7 @@ function renderStandings(){
 function renderSettings(){
   $('#setTitle').value = state.title;
   $('#setWinScore').value = state.winScore;
+  if ($('#setUiMode')) $('#setUiMode').value = uiMode;
   const seeds = Object.keys(DEFAULT_NAMES).map(Number).sort((a,b) => a-b);
   $('#nameGrid').innerHTML = seeds.map(seed =>
     '<label class="name-item"><span class="s">#' + seed + '</span>' +
@@ -1452,6 +1583,28 @@ function bindEvents(){
     b.addEventListener('click', () => switchTab(b.dataset.tab));
   });
 
+  // 模式切換（輸入分數 / 點選勝利者）
+  document.querySelectorAll('.ms-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      uiMode = btn.dataset.mode;
+      try{ localStorage.setItem('ism-ui-mode', uiMode); }catch(err){}
+      renderAll();
+    });
+  });
+
+  // 對陣圖縮放 / 全螢幕
+  $('#btnZoomOut').addEventListener('click', () => setZoom(Math.max(0.3, getZoom() - 0.1)));
+  $('#btnZoomIn').addEventListener('click', () => setZoom(Math.min(1.6, getZoom() + 0.1)));
+  $('#btnZoomFit').addEventListener('click', () => { zoomMode = 'fit'; saveZoomPref(); applyZoom(); });
+  $('#btnZoom100').addEventListener('click', () => setZoom(1));
+  $('#btnFullscreen').addEventListener('click', () => {
+    try{
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    }catch(err){}
+  });
+  window.addEventListener('resize', () => { if (zoomMode === 'fit') applyZoom(); });
+
   // 對陣圖點擊（點籤位框框 → 開對應比賽）
   const openBoard = e => {
     const card = e.target.closest('.slotbox[data-match]');
@@ -1477,6 +1630,7 @@ function bindEvents(){
     const m = R[sel];
     if (!m.aSeed || !m.bSeed){ toast('此場選手尚未確定'); return; }
     if (m.winner) return;
+    if (uiMode === 'win'){ declareWinner(sel, 'a'); return; }
     trySetScores(sel, [m.sa + 1, m.sb]);
   });
   $('#sideB').addEventListener('click', () => {
@@ -1485,6 +1639,7 @@ function bindEvents(){
     const m = R[sel];
     if (!m.aSeed || !m.bSeed){ toast('此場選手尚未確定'); return; }
     if (m.winner) return;
+    if (uiMode === 'win'){ declareWinner(sel, 'b'); return; }
     trySetScores(sel, [m.sa, m.sb + 1]);
   });
   $('#btnMinusA').addEventListener('click', () => {
@@ -1501,11 +1656,11 @@ function bindEvents(){
     if (!sel) return;
     const ok = await confirmModal({
       title: '重設此場',
-      message: '確定要將「' + matchLabelOf(sel) + '」的比分重設為 0:0 嗎？',
+      message: '確定要將「' + matchLabelOf(sel) + '」的結果重設嗎？',
       confirmText: '重設',
       danger: true
     });
-    if (ok) trySetScores(sel, [0,0]);
+    if (ok) await applyResultChange((s, w) => { delete s[sel]; delete w[sel]; });
   });
   $('#btnNext').addEventListener('click', () => {
     const id = nextReadyMatch();
@@ -1540,6 +1695,11 @@ function bindEvents(){
     if (!Number.isFinite(v) || v < 1 || v > 99){ e.target.value = state.winScore; return; }
     const ok = await trySetWinScore(v);
     if (!ok) e.target.value = state.winScore;
+  });
+  $('#setUiMode').addEventListener('change', e => {
+    uiMode = (e.target.value === 'win') ? 'win' : 'score';
+    try{ localStorage.setItem('ism-ui-mode', uiMode); }catch(err){}
+    renderAll();
   });
   $('#nameGrid').addEventListener('input', e => {
     const input = e.target.closest('input[data-seed]');
@@ -1601,6 +1761,7 @@ function bindEvents(){
 sel = firstReady(state.scores, state.winScore);
 bindEvents();
 renderAll();
+applyZoom();
 if (sharedLoaded){ save(); toast('已載入分享連結中的比分'); }
 initSync();
 </script>
