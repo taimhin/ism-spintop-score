@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>ISM 初中組陀螺大賽 — 計分系統</title>
+<style>
+:root{
+  --bg:#eef2f7; --ink:#1e293b; --muted:#64748b; --line:#cbd5e1; --line2:#e2e8f0;
+  --blue:#2563eb; --blue-bg:#dbeafe;
+  --gold:#b45309; --red:#dc2626;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
+  background:var(--bg); color:var(--ink); font-size:15px;
+}
+.hidden{display:none!important}
+
+/* ---------- header ---------- */
+header.app-header{
+  position:sticky; top:0; z-index:50;
+  display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
+  padding:10px 18px; background:rgba(255,255,255,.94); backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line2);
+}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{font-size:30px}
+h1{font-size:19px;margin:0}
+.sub{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.badge{background:var(--blue-bg);color:var(--blue);padding:1px 9px;border-radius:999px;font-weight:700}
+nav.tabs{display:flex;gap:6px}
+nav.tabs button{
+  border:1px solid var(--line); background:#fff; color:var(--ink);
+  padding:8px 16px; border-radius:10px; font-size:15px; cursor:pointer; font-weight:600; font-family:inherit;
+}
+nav.tabs button.active{background:var(--blue);border-color:var(--blue);color:#fff}
+main{padding:14px 18px 40px;max-width:1600px;margin:0 auto}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+h2{font-size:16px;margin:6px 0 10px}
+h2 small{font-weight:400;color:var(--muted);font-size:12px}
+.hint{color:var(--muted);font-size:12.5px}
+
+/* ---------- buttons ---------- */
+.btn{
+  border:1.5px solid var(--line);background:#fff;border-radius:10px;
+  padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);
+}
+.btn:hover{border-color:#93c5fd}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:#f8fafc}
+.btn.danger{background:#fef2f2;border-color:#fecaca;color:var(--red)}
+
+/* ---------- bracket ---------- */
+.quals-wrap{margin-bottom:18px}
+.quals-row{display:grid;grid-template-columns:repeat(4,minmax(200px,1fr));gap:14px}
+.qual .match{width:100%}
+.qual-feed{font-size:11.5px;color:var(--muted);text-align:center;margin-top:5px}
+.bracket-scroll{overflow-x:auto;padding-bottom:8px;border:1px solid var(--line2);border-radius:12px;background:#f8fafc}
+.bracket-inner{min-width:1370px;padding:14px 22px}
+.colheads{display:grid;grid-template-columns:repeat(7,minmax(172px,1fr));column-gap:28px;margin-bottom:8px}
+.colheads .ch{text-align:center;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em}
+.bracket-grid{
+  display:grid;grid-template-columns:repeat(7,minmax(172px,1fr));
+  grid-template-rows:repeat(16,minmax(54px,auto));column-gap:28px;row-gap:2px;
+}
+.cell{position:relative;display:flex;align-items:center}
+.cell.c2::before,.cell.c3::before,.cell.c4::before{
+  content:'';position:absolute;left:-14px;top:25%;height:50%;border-left:2px solid var(--line);
+}
+.cell.c1::after,.cell.c2::after,.cell.c3::after,.cell.c4::after{
+  content:'';position:absolute;right:-14px;top:50%;width:14px;border-top:2px solid var(--line);
+}
+.cell.c2 .match::before,.cell.c3 .match::before,.cell.c4 .match::before{
+  content:'';position:absolute;left:-14px;top:50%;width:14px;border-top:2px solid var(--line);
+}
+.match{
+  width:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;
+  overflow:hidden;cursor:pointer;transition:border-color .15s, box-shadow .15s;position:relative;
+}
+.match:hover{border-color:#93c5fd;box-shadow:0 2px 12px rgba(37,99,235,.14)}
+.match.selected{outline:3px solid var(--blue);outline-offset:1px}
+.mrow{display:flex;align-items:center;gap:6px;padding:5px 9px;min-height:27px}
+.mrow + .mrow{border-top:1px dashed var(--line2)}
+.mrow .seed{font-size:10px;color:#94a3b8;min-width:18px;text-align:right;font-variant-numeric:tabular-nums}
+.mrow .nm{flex:1;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .sc{min-width:20px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:#475569}
+.mrow.win{background:#dcfce7}
+.mrow.win .nm{font-weight:700;color:#166534}
+.mrow.win .sc{color:#15803d}
+.mrow.lose{opacity:.42}
+.mrow.undecided .nm{color:#94a3b8}
+.champ-card{
+  width:100%;text-align:center;border:2px dashed #f59e0b;border-radius:16px;
+  background:linear-gradient(180deg,#fffbeb,#fef3c7);padding:20px 12px;
+}
+.champ-card .trophy{font-size:40px;line-height:1}
+.rk-label{font-size:11px;color:var(--muted);letter-spacing:.14em;margin-top:2px}
+.champ-name{font-size:clamp(16px,1.7vw,24px);font-weight:800;color:var(--gold);margin-top:4px}
+.mini-podium{margin-top:14px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:#475569}
+.mini-podium div{background:#ffffffcc;border-radius:8px;padding:4px 8px}
+
+/* ---------- board ---------- */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:6px 2px 12px;align-items:stretch}
+.chip-sep{display:flex;align-items:center;color:var(--muted);font-size:11.5px;font-weight:700;padding:0 6px;white-space:nowrap}
+.chip{
+  flex:0 0 auto;min-width:118px;max-width:180px;text-align:left;
+  border:1.5px solid var(--line);background:#fff;border-radius:10px;
+  padding:6px 9px;cursor:pointer;font-family:inherit;color:var(--ink);
+}
+.chip .ct{font-size:12.5px;font-weight:700;display:block}
+.chip .cn{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+.chip.ready{border-color:#93c5fd;background:#eff6ff}
+.chip.done{border-color:#bbf7d0;background:#f0fdf4}
+.chip.done .ct{color:#166534}
+.chip.selected{outline:3px solid var(--blue)}
+.board-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 12px}
+.board-round{font-size:18px;font-weight:800}
+.board-hint{color:var(--muted);font-size:13px}
+.score-stage{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch;max-width:1250px;margin:0 auto}
+.side{
+  border-radius:18px;padding:20px 16px;text-align:center;cursor:pointer;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  background:#fff;border:2.5px solid var(--line);position:relative;
+  transition:border-color .15s, box-shadow .15s, transform .05s;
+}
+.side:hover{border-color:#93c5fd}
+.side:active{transform:scale(.995)}
+.side.winner{border-color:#16a34a;background:linear-gradient(180deg,#f0fdf4,#dcfce7);box-shadow:0 0 0 5px rgba(22,163,74,.14)}
+.side.loser{opacity:.45}
+.side.disabled{cursor:not-allowed}
+.side.disabled .pscore{color:#cbd5e1}
+.pseed{font-size:12px;color:#94a3b8;font-weight:700;letter-spacing:.08em}
+.pname{font-size:clamp(20px,3.2vw,40px);font-weight:700;margin-top:4px;word-break:break-all}
+.pscore{font-size:clamp(64px,12vw,150px);font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums;color:#1e293b}
+.pscore.pulse{animation:pop .28s ease}
+@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.16)}100%{transform:scale(1)}}
+.vs{display:flex;align-items:center;justify-content:center;font-weight:900;color:#94a3b8;font-size:20px;letter-spacing:.1em}
+.board-controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.win-banner{
+  margin:16px auto 0;max-width:900px;text-align:center;
+  background:linear-gradient(90deg,#dcfce7,#f0fdf4);border:2px solid #86efac;color:#166534;
+  font-size:clamp(18px,2.4vw,30px);font-weight:800;padding:14px;border-radius:14px;
+}
+.empty-state{
+  text-align:center;color:var(--muted);font-size:18px;padding:60px 20px;
+  background:#fff;border:1.5px dashed var(--line);border-radius:16px;
+}
+
+/* ---------- standings ---------- */
+.podium{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:8px 0 16px}
+.pod{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.pod .pod-rank{font-size:26px}
+.pod .rk-label{letter-spacing:.12em}
+.pod .pod-name{font-size:clamp(15px,1.6vw,22px);font-weight:800;margin-top:4px;word-break:break-all}
+.pod.p1{border-color:#fcd34d;background:linear-gradient(180deg,#fffbeb,#fef3c7)}
+.pod.p2{border-color:#cbd5e1;background:linear-gradient(180deg,#f8fafc,#f1f5f9)}
+.pod.p3{border-color:#fdba74;background:linear-gradient(180deg,#fff7ed,#ffedd5)}
+.standings-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.table-wrap{background:#fff;border:1.5px solid var(--line);border-radius:12px;overflow:auto;max-height:70vh}
+table.results{border-collapse:collapse;width:100%;font-size:13.5px}
+table.results th,table.results td{padding:7px 10px;border-bottom:1px solid var(--line2);text-align:left;white-space:nowrap}
+table.results thead th{position:sticky;top:0;background:#f8fafc;font-size:12px;color:var(--muted);letter-spacing:.05em;z-index:1}
+table.results tr.done td{background:#f0fdf4}
+table.results td.win{font-weight:700;color:#15803d}
+.tag{display:inline-block;font-size:11px;border-radius:999px;padding:1px 8px;background:#f1f5f9;color:var(--muted);border:1px solid var(--line2)}
+.tag.live{background:#eff6ff;color:var(--blue);border-color:#bfdbfe}
+.tag.fin{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0}
+
+/* ---------- settings ---------- */
+.card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;max-width:1050px}
+.card label{display:flex;gap:10px;align-items:center;margin:8px 0;font-size:14px}
+.card input[type=text],.card input[type=number]{
+  padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;color:var(--ink);
+}
+.name-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px}
+.name-item{display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid var(--line2);border-radius:8px;padding:4px 8px}
+.name-item .s{font-size:11px;color:#94a3b8;min-width:24px;font-variant-numeric:tabular-nums}
+.name-item input{border:none;background:transparent;font-size:13.5px;width:100%;font-family:inherit;outline:none;color:var(--ink)}
+.danger-zone .btn{margin-right:10px;margin-bottom:6px}
+
+/* ---------- modal / toast ---------- */
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-box{background:#fff;border-radius:14px;max-width:540px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-box h3{margin:0 0 10px;font-size:17px}
+.modal-msg{white-space:pre-line;color:#334155;font-size:14px;max-height:50vh;overflow:auto;margin-bottom:16px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end}
+.toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+  background:#0f172a;color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;
+  z-index:120;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:80vw;text-align:center;
+}
+
+/* ---------- print ---------- */
+.print-area{display:none}
+@media print{
+  body{background:#fff}
+  header.app-header,main,.modal,.toast{display:none!important}
+  .print-area{display:block!important}
+  .print-area h1{font-size:22px;margin:0 0 4px}
+  .print-area .meta{color:#475569;font-size:12px;margin-bottom:12px}
+  .print-area .podline{font-size:15px;margin:4px 0}
+  .print-area table{width:100%;border-collapse:collapse;font-size:12px}
+  .print-area th,.print-area td{border:1px solid #94a3b8;padding:4px 6px;text-align:left}
+}
+
+/* ---------- narrow screens ---------- */
+@media (max-width: 860px){
+  .quals-row{grid-template-columns:repeat(2,1fr)}
+  .score-stage{grid-template-columns:1fr}
+  .vs{display:none}
+  .podium{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="logo">🌀</div>
+    <div>
+      <h1 id="appTitle">ISM 初中組陀螺大賽</h1>
+      <div class="sub">
+        <span class="badge" id="ruleBadge">先取 4 分制</span>
+        <span>單淘汰 · 含季軍賽</span>
+        <span id="saveInfo">尚未儲存</span>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button data-tab="bracket" class="active">對陣圖</button>
+    <button data-tab="board">記分板</button>
+    <button data-tab="standings">名次</button>
+    <button data-tab="settings">設定</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-bracket" class="tab-panel active">
+    <div class="quals-wrap">
+      <h2>64強 資格賽 <small>勝方晉級 32 強</small></h2>
+      <div id="qualsRow" class="quals-row"></div>
+    </div>
+    <div class="bracket-scroll">
+      <div class="bracket-inner">
+        <div class="colheads">
+          <div class="ch">32強</div><div class="ch">16強</div><div class="ch">8強</div>
+          <div class="ch">4強</div><div class="ch">季軍賽</div><div class="ch">決賽</div><div class="ch">冠軍</div>
+        </div>
+        <div id="bracketGrid" class="bracket-grid"></div>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px">點擊任一場比賽即可跳到「記分板」輸入比分；綠色底 = 勝方。</p>
+  </section>
+
+  <section id="tab-board" class="tab-panel">
+    <div id="boardChips" class="chips"></div>
+    <div id="boardEmpty" class="empty-state hidden"></div>
+    <div id="boardMain" class="hidden">
+      <div class="board-head">
+        <span id="boardRound" class="board-round"></span>
+        <span id="boardHint" class="board-hint"></span>
+      </div>
+      <div class="score-stage">
+        <div class="side" id="sideA">
+          <div class="pseed" id="seedA"></div>
+          <div class="pname" id="nameA">待定</div>
+          <div class="pscore" id="scoreA">0</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="side" id="sideB">
+          <div class="pseed" id="seedB"></div>
+          <div class="pname" id="nameB">待定</div>
+          <div class="pscore" id="scoreB">0</div>
+        </div>
+      </div>
+      <div class="board-controls">
+        <button class="btn ghost" id="btnMinusA">← A 減 1 分</button>
+        <button class="btn ghost" id="btnResetMatch">重設此場</button>
+        <button class="btn ghost" id="btnMinusB">B 減 1 分 →</button>
+        <button class="btn primary" id="btnNext">下一場 →</button>
+      </div>
+      <div id="winBanner" class="win-banner hidden"></div>
+    </div>
+  </section>
+
+  <section id="tab-standings" class="tab-panel">
+    <div class="podium" id="podium"></div>
+    <div class="standings-actions">
+      <button class="btn primary" id="btnPrint">🖨 列印成績表</button>
+      <button class="btn" id="btnShare">🔗 複製分享連結</button>
+      <button class="btn" id="btnCsv">⬇ 匯出 CSV</button>
+      <button class="btn" id="btnJson">⬇ 匯出備份 (JSON)</button>
+    </div>
+    <div class="table-wrap">
+      <table class="results">
+        <thead>
+          <tr><th>輪次</th><th>場次</th><th>選手 A</th><th>比分</th><th>選手 B</th><th>勝方</th><th>狀態</th></tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-settings" class="tab-panel">
+    <div class="card">
+      <h2>基本設定</h2>
+      <label>比賽名稱 <input id="setTitle" type="text" style="flex:1;max-width:420px"></label>
+      <label>每場先取分數 <input id="setWinScore" type="number" min="1" max="99" style="width:90px"></label>
+      <p class="hint">預設為 4 分（依對陣表規定：先得 4 分者晉級）。</p>
+    </div>
+    <div class="card">
+      <h2>選手名單 <small>（數字為對陣表上的種子編號，可直接修改）</small></h2>
+      <div id="nameGrid" class="name-grid"></div>
+    </div>
+    <div class="card danger-zone">
+      <h2>資料管理</h2>
+      <button class="btn" id="btnImport">匯入備份…</button>
+      <input id="fileImport" type="file" accept=".json,application/json" class="hidden">
+      <button class="btn danger" id="btnResetAll">重設所有比分</button>
+      <p class="hint" style="margin-top:8px">所有資料自動存在本機瀏覽器（離線可用）；建議賽前先按「匯出備份」保存一份。</p>
+    </div>
+  </section>
+</main>
+
+<div id="printArea" class="print-area"></div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="modalTitle"></h3>
+    <div id="modalMsg" class="modal-msg"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="modalCancel">取消</button>
+      <button class="btn primary" id="modalOk">確定</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+'use strict';
+
+// ==CORE-START==
+/* ===================== 核心資料與邏輯（不碰 DOM） ===================== */
+
+const DEFAULT_NAMES = {
+  '1':'F3D區皓竣',   '3':'F3E黃俊希',   '4':'F1C黃傲琛',   '5':'F1C劉卓興',
+  '7':'F1E黃璟翰',   '9':'F2D李浩綸',   '11':'F1B劉愷庭',  '13':'F1E湯文軒',
+  '15':'F1C馮俊霆',  '17':'F1C嚴啟樂',  '19':'F3E林柏豪',  '20':'F1A施孝洋',
+  '21':'F1D何亮樂',  '23':'F2B吳睿謙',  '25':'F3E李柏澔',  '27':'F1C李承霖',
+  '29':'F2B黃恩賜',  '31':'F2E郭駿傑',  '33':'F3E林煒軒',  '35':'F1A劉浩舜',
+  '36':'F3E冼彥匡',  '37':'F1D梁卓謙',  '39':'F3B關頌熙',  '41':'神秘嘉賓',
+  '43':'F2E候俊銘',  '45':'F2A黃康喆',  '47':'N/A',        '49':'F2E劉政賢',
+  '51':'F2C金孟熹',  '52':'F1A馮允遵',  '53':'F3A李在信',  '55':'F1D謝承峻',
+  '57':'F1E關恩洛',  '59':'F1E陳沛林',  '61':'F2B陸詠熙',  '63':'F1B冼群寶'
+};
+
+const ROUND_INFO = {
+  Q:  {label:'64強資格賽', short:'資格賽', advance:'32強'},
+  R32:{label:'32強',      short:'32強',   advance:'16強'},
+  R16:{label:'16強',      short:'16強',   advance:'8強'},
+  QF: {label:'8強',       short:'8強',    advance:'4強'},
+  SF: {label:'4強',       short:'4強',    advance:'決賽'},
+  F:  {label:'決賽',      short:'決賽',   advance:null},
+  T:  {label:'季軍賽',    short:'季軍賽', advance:null}
+};
+
+const S = n  => ({seed:n});
+const W = id => ({winnerOf:id});
+const L = id => ({loserOf:id});
+
+const MATCH_DEFS = {
+  'Q1':{r:'Q',no:1,a:S(3),b:S(4)},
+  'Q2':{r:'Q',no:2,a:S(19),b:S(20)},
+  'Q3':{r:'Q',no:3,a:S(35),b:S(36)},
+  'Q4':{r:'Q',no:4,a:S(51),b:S(52)},
+
+  'R32-1':{r:'R32',no:1, a:S(1), b:W('Q1')},
+  'R32-2':{r:'R32',no:2, a:S(5), b:S(7)},
+  'R32-3':{r:'R32',no:3, a:S(9), b:S(11)},
+  'R32-4':{r:'R32',no:4, a:S(13),b:S(15)},
+  'R32-5':{r:'R32',no:5, a:S(17),b:W('Q2')},
+  'R32-6':{r:'R32',no:6, a:S(21),b:S(23)},
+  'R32-7':{r:'R32',no:7, a:S(25),b:S(27)},
+  'R32-8':{r:'R32',no:8, a:S(29),b:S(31)},
+  'R32-9':{r:'R32',no:9, a:S(33),b:W('Q3')},
+  'R32-10':{r:'R32',no:10,a:S(37),b:S(39)},
+  'R32-11':{r:'R32',no:11,a:S(41),b:S(43)},
+  'R32-12':{r:'R32',no:12,a:S(45),b:S(47)},
+  'R32-13':{r:'R32',no:13,a:S(49),b:W('Q4')},
+  'R32-14':{r:'R32',no:14,a:S(53),b:S(55)},
+  'R32-15':{r:'R32',no:15,a:S(57),b:S(59)},
+  'R32-16':{r:'R32',no:16,a:S(61),b:S(63)},
+
+  'R16-1':{r:'R16',no:1,a:W('R32-1'),b:W('R32-2')},
+  'R16-2':{r:'R16',no:2,a:W('R32-3'),b:W('R32-4')},
+  'R16-3':{r:'R16',no:3,a:W('R32-5'),b:W('R32-6')},
+  'R16-4':{r:'R16',no:4,a:W('R32-7'),b:W('R32-8')},
+  'R16-5':{r:'R16',no:5,a:W('R32-9'),b:W('R32-10')},
+  'R16-6':{r:'R16',no:6,a:W('R32-11'),b:W('R32-12')},
+  'R16-7':{r:'R16',no:7,a:W('R32-13'),b:W('R32-14')},
+  'R16-8':{r:'R16',no:8,a:W('R32-15'),b:W('R32-16')},
+
+  'QF-1':{r:'QF',no:1,a:W('R16-1'),b:W('R16-2')},
+  'QF-2':{r:'QF',no:2,a:W('R16-3'),b:W('R16-4')},
+  'QF-3':{r:'QF',no:3,a:W('R16-5'),b:W('R16-6')},
+  'QF-4':{r:'QF',no:4,a:W('R16-7'),b:W('R16-8')},
+
+  'SF-1':{r:'SF',no:1,a:W('QF-1'),b:W('QF-2')},
+  'SF-2':{r:'SF',no:2,a:W('QF-3'),b:W('QF-4')},
+
+  'T-1':{r:'T',no:1,a:L('SF-1'),b:L('SF-2')},
+  'F-1':{r:'F',no:1,a:W('SF-1'),b:W('SF-2')}
+};
+
+/* 解析順序：上游必須排在依賴它的比賽之前 */
+const ORDER = [
+  'Q1','Q2','Q3','Q4',
+  'R32-1','R32-2','R32-3','R32-4','R32-5','R32-6','R32-7','R32-8',
+  'R32-9','R32-10','R32-11','R32-12','R32-13','R32-14','R32-15','R32-16',
+  'R16-1','R16-2','R16-3','R16-4','R16-5','R16-6','R16-7','R16-8',
+  'QF-1','QF-2','QF-3','QF-4',
+  'SF-1','SF-2',
+  'T-1','F-1'
+];
+
+function decideWinner(sa, sb, k){
+  if (sa >= k && sb >= k) return sa > sb ? 'a' : (sb > sa ? 'b' : null);
+  if (sa >= k) return 'a';
+  if (sb >= k) return 'b';
+  return null;
+}
+
+/* 將所有比分換算成完整對陣狀態：seeds + 勝負 */
+function resolveAll(scores, k){
+  const R = {};
+  const resSrc = (src) => {
+    if (src.seed) return src.seed;
+    const m = R[src.winnerOf || src.loserOf];
+    if (!m || !m.winner) return null;
+    const winSeed  = m.winner === 'a' ? m.aSeed : m.bSeed;
+    const loseSeed = m.winner === 'a' ? m.bSeed : m.aSeed;
+    return src.winnerOf ? winSeed : loseSeed;
+  };
+  for (const id of ORDER){
+    const d = MATCH_DEFS[id];
+    const sc = scores[id] || [0,0];
+    const aSeed = resSrc(d.a);
+    const bSeed = resSrc(d.b);
+    R[id] = {aSeed, bSeed, sa:sc[0], sb:sc[1], winner:decideWinner(sc[0], sc[1], k)};
+  }
+  return R;
+}
+
+/* 套用 simScores 後，哪些「已有比分」的比賽會因為參賽者變動而必須被清除 */
+function computeCleared(scores, simScores, kBefore, kAfter){
+  const before = resolveAll(scores, kBefore);
+  const C = new Set();
+  let dirty = true;
+  while (dirty){
+    dirty = false;
+    const sim = {...simScores};
+    C.forEach(m => delete sim[m]);
+    const after = resolveAll(sim, kAfter);
+    for (const mid of ORDER){
+      const b = before[mid], a2 = after[mid];
+      if (b.aSeed !== a2.aSeed || b.bSeed !== a2.bSeed){
+        const sc = simScores[mid];
+        if (sc && (sc[0] > 0 || sc[1] > 0) && !C.has(mid)){ C.add(mid); dirty = true; }
+      }
+    }
+  }
+  return C;
+}
+
+function nameOf(seed, names){
+  if (!seed) return '待定';
+  const n = names[seed] || DEFAULT_NAMES[seed];
+  return n && String(n).trim() ? n : '待定';
+}
+
+function winnerNameOf(m, names){
+  if (!m || !m.winner) return null;
+  return nameOf(m.winner === 'a' ? m.aSeed : m.bSeed, names);
+}
+function loserNameOf(m, names){
+  if (!m || !m.winner) return null;
+  return nameOf(m.winner === 'a' ? m.bSeed : m.aSeed, names);
+}
+
+function firstReady(scores, k){
+  const R = resolveAll(scores, k);
+  for (const id of ORDER){
+    const m = R[id];
+    if (m.aSeed && m.bSeed && !m.winner) return id;
+  }
+  return null;
+}
+
+function standings(scores, k, names){
+  const R = resolveAll(scores, k);
+  const f = R['F-1'], t = R['T-1'];
+  return {
+    champion: winnerNameOf(f, names),
+    runnerUp: loserNameOf(f, names),
+    third:    winnerNameOf(t, names),
+    fourth:   loserNameOf(t, names)
+  };
+}
+
+function buildResultRows(scores, k, names){
+  const R = resolveAll(scores, k);
+  return ORDER.map(id => {
+    const d = MATCH_DEFS[id], m = R[id];
+    const aName = nameOf(m.aSeed, names), bName = nameOf(m.bSeed, names);
+    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+    const score = started ? (m.sa + ' : ' + m.sb) : '—';
+    let status;
+    if (m.winner) status = '已完成';
+    else if (!m.aSeed || !m.bSeed) status = '待定';
+    else if (started) status = '進行中';
+    else status = '未開始';
+    const winName = m.winner ? (m.winner === 'a' ? aName : bName) : '—';
+    return {
+      id, round: ROUND_INFO[d.r].label, no: d.no,
+      aName, bName, score, winName, status,
+      started, done: !!m.winner, ready: !!(m.aSeed && m.bSeed)
+    };
+  });
+}
+// ==CORE-END==
+
+/* ===================== 狀態與儲存 ===================== */
+
+const LS_KEY = 'ism-spin-score-v1';
+
+function freshState(){
+  return {
+    v: 1,
+    title: 'ISM 初中組陀螺大賽',
+    winScore: 4,
+    names: {...DEFAULT_NAMES},
+    scores: {},
+    updatedAt: null
+  };
+}
+
+function sanitizeScores(raw){
+  const out = {};
+  if (raw && typeof raw === 'object'){
+    for (const id in raw){
+      if (!MATCH_DEFS[id]) continue;
+      const v = raw[id];
+      if (Array.isArray(v) && v.length === 2 && v.every(n => Number.isFinite(n) && n >= 0)){
+        out[id] = [Math.floor(v[0]), Math.floor(v[1])];
+      }
+    }
+  }
+  return out;
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return freshState();
+    const obj = JSON.parse(raw);
+    const st = freshState();
+    if (obj && typeof obj === 'object'){
+      if (obj.title) st.title = String(obj.title);
+      if (Number.isFinite(obj.winScore)) st.winScore = Math.max(1, Math.min(99, Math.floor(obj.winScore)));
+      if (obj.names && typeof obj.names === 'object'){
+        for (const key in obj.names){
+          if (key in DEFAULT_NAMES) st.names[key] = String(obj.names[key]);
+        }
+      }
+      st.scores = sanitizeScores(obj.scores);
+      st.updatedAt = obj.updatedAt || null;
+    }
+    return st;
+  }catch(err){
+    return freshState();
+  }
+}
+
+let state = loadState();
+let sel = null; // 目前選取的比賽 id
+
+/* ---------- 分享連結（把目前比賽狀態編碼進網址） ---------- */
+function b64encodeUtf8(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64decodeUtf8(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function buildShareLink(){
+  const data = {title: state.title, winScore: state.winScore, names: state.names, scores: state.scores};
+  return location.href.split('#')[0] + '#s=' + b64encodeUtf8(JSON.stringify(data));
+}
+let sharedLoaded = false;
+(function applySharedState(){
+  const m = location.hash.match(/[#&]s=([^&]+)/);
+  if (!m) return;
+  try{
+    const obj = JSON.parse(b64decodeUtf8(m[1]));
+    if (obj && typeof obj === 'object'){
+      if (obj.title) state.title = String(obj.title);
+      if (Number.isFinite(obj.winScore)) state.winScore = Math.max(1, Math.min(99, Math.floor(obj.winScore)));
+      if (obj.names && typeof obj.names === 'object'){
+        for (const key in obj.names){
+          if (key in DEFAULT_NAMES) state.names[key] = String(obj.names[key]);
+        }
+      }
+      state.scores = sanitizeScores(obj.scores);
+      sharedLoaded = true;
+    }
+  }catch(err){}
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(err){}
+})();
+
+let saveTimer = null;
+function save(){
+  state.updatedAt = Date.now();
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(err){}
+  updateSaveInfo();
+}
+function debounceSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 400);
+}
+
+/* ===================== 小工具 ===================== */
+
+const $ = s => document.querySelector(s);
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let toastTimer = null;
+function toast(msg){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 2400);
+}
+
+let modalResolve = null;
+function confirmModal({title, message, confirmText = '確定', danger = false}){
+  return new Promise(resolve => {
+    modalResolve = resolve;
+    $('#modalTitle').textContent = title;
+    $('#modalMsg').textContent = message;
+    const ok = $('#modalOk');
+    ok.textContent = confirmText;
+    ok.className = 'btn ' + (danger ? 'danger' : 'primary');
+    $('#modal').classList.remove('hidden');
+  });
+}
+function closeModal(result){
+  $('#modal').classList.add('hidden');
+  if (modalResolve){ const r = modalResolve; modalResolve = null; r(result); }
+}
+
+function fmtTime(ts){
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2,'0');
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+function updateSaveInfo(){
+  $('#saveInfo').textContent = state.updatedAt ? ('已自動儲存 · ' + fmtTime(state.updatedAt)) : '尚未儲存';
+}
+
+function matchLabelOf(id){
+  const d = MATCH_DEFS[id];
+  const tag = (d.r === 'F' || d.r === 'T') ? ROUND_INFO[d.r].label : (ROUND_INFO[d.r].label + ' 第' + d.no + '場');
+  const R = resolveAll(state.scores, state.winScore);
+  const m = R[id];
+  return tag + '（' + nameOf(m.aSeed, state.names) + ' vs ' + nameOf(m.bSeed, state.names) + '）';
+}
+
+/* ===================== 計分操作 ===================== */
+
+function scoreOf(id){
+  const sc = state.scores[id];
+  return sc ? [sc[0], sc[1]] : [0,0];
+}
+
+async function trySetScores(id, next){
+  const k = state.winScore;
+  const cur = scoreOf(id);
+  if (next[0] === cur[0] && next[1] === cur[1]) return;
+
+  // 已完成的比賽不能繼續加分（改分請先減分或重設）
+  const curWin = decideWinner(cur[0], cur[1], k);
+  if (curWin && (next[0] > cur[0] || next[1] > cur[1])){
+    toast('此場已完成，如需修改請先按「重設此場」');
+    return;
+  }
+
+  const simScores = {...state.scores, [id]: next};
+  const C = computeCleared(state.scores, simScores, k, k);
+
+  if (C.size){
+    const list = [...C].map(mid => '・' + matchLabelOf(mid)).join('\n');
+    const ok = await confirmModal({
+      title: '需要清除後續比分',
+      message: '這項變更會影響下列已記錄的比賽，這些比賽將被重設為 0:0：\n\n' + list + '\n\n確定要繼續嗎？',
+      confirmText: '確定並清除',
+      danger: true
+    });
+    if (!ok) return;
+  }
+
+  const ns = {...simScores};
+  C.forEach(m => delete ns[m]);
+  if (ns[id] && ns[id][0] === 0 && ns[id][1] === 0) delete ns[id];
+  state.scores = ns;
+  save();
+  renderAll();
+}
+
+async function trySetWinScore(k2){
+  const k = state.winScore;
+  if (k2 === k) return true;
+  const C = computeCleared(state.scores, {...state.scores}, k, k2);
+  if (C.size){
+    const list = [...C].map(mid => '・' + matchLabelOf(mid)).join('\n');
+    const ok = await confirmModal({
+      title: '變更獲勝分數',
+      message: '改變每場先取分數後，下列已記錄的比賽將被重設為 0:0：\n\n' + list + '\n\n確定要繼續嗎？',
+      confirmText: '確定並清除',
+      danger: true
+    });
+    if (!ok) return false;
+  }
+  const ns = {...state.scores};
+  C.forEach(m => delete ns[m]);
+  state.winScore = k2;
+  state.scores = ns;
+  save();
+  renderAll();
+  return true;
+}
+
+/* ===================== 分頁切換 ===================== */
+
+function switchTab(name){
+  document.querySelectorAll('nav.tabs button').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + name);
+  });
+  if (name === 'board' && !sel) sel = firstReady(state.scores, state.winScore);
+  renderAll();
+}
+
+/* ===================== 對陣圖 ===================== */
+
+function cardRowsHTML(id, m){
+  const cols = [['a', m.aSeed, m.sa], ['b', m.bSeed, m.sb]];
+  return cols.map(([side, seed, sc]) => {
+    let cls = '';
+    if (m.winner) cls = (m.winner === side ? 'win' : 'lose');
+    else if (!seed) cls = 'undecided';
+    const nm = escapeHtml(nameOf(seed, state.names));
+    const started = m.sa > 0 || m.sb > 0 || !!m.winner;
+    const scTxt = started ? sc : '–';
+    return '<div class="mrow ' + cls + '">' +
+      '<span class="seed">' + (seed || '') + '</span>' +
+      '<span class="nm" title="' + nm + '">' + nm + '</span>' +
+      '<span class="sc">' + scTxt + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function matchHTML(id, R){
+  return '<div class="match' + (sel === id ? ' selected' : '') + '" data-id="' + id + '" title="' + escapeHtml(matchLabelOf(id)) + '">' +
+    cardRowsHTML(id, R[id]) + '</div>';
+}
+
+function renderBracket(){
+  const R = resolveAll(state.scores, state.winScore);
+
+  // 64強資格賽
+  const feeds = {'Q1':'R32-1','Q2':'R32-5','Q3':'R32-9','Q4':'R32-13'};
+  $('#qualsRow').innerHTML = ['Q1','Q2','Q3','Q4'].map(id => {
+    const feed = feeds[id];
+    const fd = MATCH_DEFS[feed];
+    return '<div class="qual">' + matchHTML(id, R) +
+      '<div class="qual-feed">勝方 → 32強 第' + fd.no + '場</div></div>';
+  }).join('');
+
+  // 主對陣圖
+  const cells = [];
+  const put = (id, col, rowStart, rowSpan) => {
+    cells.push('<div class="cell c' + col + '" style="grid-column:' + col + ';grid-row:' + rowStart + ' / span ' + rowSpan + '">' +
+      matchHTML(id, R) + '</div>');
+  };
+
+  for (let i = 1; i <= 16; i++) put('R32-' + i, 1, i, 1);
+  for (let j = 1; j <= 8;  j++) put('R16-' + j, 2, (j-1)*2 + 1, 2);
+  for (let q = 1; q <= 4;  q++) put('QF-' + q,  3, (q-1)*4 + 1, 4);
+  for (let s = 1; s <= 2;  s++) put('SF-' + s,  4, (s-1)*8 + 1, 8);
+  put('T-1', 5, 1, 16);
+  put('F-1', 6, 1, 16);
+
+  // 冠軍卡
+  const f = R['F-1'], t = R['T-1'];
+  const champ = winnerNameOf(f, state.names);
+  const second = loserNameOf(f, state.names);
+  const third = winnerNameOf(t, state.names);
+  const fourth = loserNameOf(t, state.names);
+  cells.push(
+    '<div class="cell c7" style="grid-column:7;grid-row:1 / span 16">' +
+      '<div class="champ-card">' +
+        '<div class="trophy">🏆</div>' +
+        '<div class="rk-label">冠軍</div>' +
+        '<div class="champ-name">' + (champ ? escapeHtml(champ) : '待定') + '</div>' +
+        '<div class="rk-label" style="margin-top:6px">ISM Principal\'s Winner</div>' +
+        '<div class="mini-podium">' +
+          '<div>🥈 亞軍：' + escapeHtml(second || '待定') + '</div>' +
+          '<div>🥉 季軍：' + escapeHtml(third || '待定') + '</div>' +
+          '<div>4️⃣ 殿軍：' + escapeHtml(fourth || '待定') + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  );
+
+  $('#bracketGrid').innerHTML = cells.join('');
+}
+
+/* ===================== 記分板 ===================== */
+
+function chipTitle(id){
+  const d = MATCH_DEFS[id];
+  if (d.r === 'F' || d.r === 'T') return ROUND_INFO[d.r].label;
+  return ROUND_INFO[d.r].short + ' 第' + d.no + '場';
+}
+
+function renderChips(){
+  const R = resolveAll(state.scores, state.winScore);
+  let html = '';
+  let lastR = null;
+  for (const id of ORDER){
+    const d = MATCH_DEFS[id];
+    if (d.r !== lastR){
+      html += '<div class="chip-sep">' + ROUND_INFO[d.r].label + '</div>';
+      lastR = d.r;
+    }
+    const m = R[id];
+    let cls = 'chip';
+    if (m.winner) cls += ' done';
+    else if (m.aSeed && m.bSeed) cls += ' ready';
+    if (sel === id) cls += ' selected';
+    const aN = nameOf(m.aSeed, state.names), bN = nameOf(m.bSeed, state.names);
+    const midTxt = m.winner ? ' ✓ ' + m.sa + ':' + m.sb + ' ' : ' vs ';
+    html += '<button class="' + cls + '" data-id="' + id + '">' +
+      '<span class="ct">' + chipTitle(id) + '</span>' +
+      '<span class="cn">' + escapeHtml(aN + midTxt + bN) + '</span>' +
+    '</button>';
+  }
+  $('#boardChips').innerHTML = html;
+}
+
+function pulse(el){
+  el.classList.remove('pulse');
+  void el.offsetWidth;
+  el.classList.add('pulse');
+}
+
+function renderBoard(){
+  renderChips();
+  if (!sel) sel = firstReady(state.scores, state.winScore);
+
+  const empty = $('#boardEmpty');
+  const main = $('#boardMain');
+
+  if (!sel){
+    main.classList.add('hidden');
+    empty.classList.remove('hidden');
+    empty.textContent = '🎉 所有比賽已完成，恭喜各位得獎選手！';
+    return;
+  }
+  main.classList.remove('hidden');
+  empty.classList.add('hidden');
+
+  const R = resolveAll(state.scores, state.winScore);
+  const m = R[sel];
+  const d = MATCH_DEFS[sel];
+  const ready = !!(m.aSeed && m.bSeed);
+
+  $('#boardRound').textContent = chipTitle(sel);
+  $('#boardHint').textContent = '先取 ' + state.winScore + ' 分 · 點選選手區塊即可 +1 分';
+
+  $('#seedA').textContent = m.aSeed ? ('#' + m.aSeed) : '';
+  $('#seedB').textContent = m.bSeed ? ('#' + m.bSeed) : '';
+  $('#nameA').textContent = nameOf(m.aSeed, state.names);
+  $('#nameB').textContent = nameOf(m.bSeed, state.names);
+  $('#scoreA').textContent = m.sa;
+  $('#scoreB').textContent = m.sb;
+
+  const sideA = $('#sideA'), sideB = $('#sideB');
+  sideA.className = 'side' + (m.winner === 'a' ? ' winner' : '') + (m.winner === 'b' ? ' loser' : '') + (!ready || m.winner ? ' disabled' : '');
+  sideB.className = 'side' + (m.winner === 'b' ? ' winner' : '') + (m.winner === 'a' ? ' loser' : '') + (!ready || m.winner ? ' disabled' : '');
+
+  const banner = $('#winBanner');
+  if (m.winner){
+    const wn = m.winner === 'a' ? nameOf(m.aSeed, state.names) : nameOf(m.bSeed, state.names);
+    let extra;
+    if (d.r === 'F') extra = '奪得冠軍！';
+    else if (d.r === 'T') extra = '獲得季軍！';
+    else extra = '勝出，晉級 ' + ROUND_INFO[d.r].advance + '！';
+    banner.textContent = '🏆 ' + wn + ' ' + extra;
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+function nextReadyMatch(){
+  const R = resolveAll(state.scores, state.winScore);
+  const idx = ORDER.indexOf(sel);
+  for (let i = 1; i <= ORDER.length; i++){
+    const id = ORDER[(idx + i) % ORDER.length];
+    const m = R[id];
+    if (m.aSeed && m.bSeed && !m.winner) return id;
+  }
+  return null;
+}
+
+/* ===================== 名次 / 賽果 ===================== */
+
+function renderStandings(){
+  const st = standings(state.scores, state.winScore, state.names);
+  const pod = (cls, emoji, label, name) =>
+    '<div class="pod ' + cls + '">' +
+      '<div class="pod-rank">' + emoji + '</div>' +
+      '<div class="rk-label">' + label + '</div>' +
+      '<div class="pod-name">' + escapeHtml(name || '待定') + '</div>' +
+    '</div>';
+  $('#podium').innerHTML =
+    pod('p1','🥇','冠軍', st.champion) +
+    pod('p2','🥈','亞軍', st.runnerUp) +
+    pod('p3','🥉','季軍', st.third) +
+    pod('p4','4️⃣','殿軍', st.fourth);
+
+  const rows = buildResultRows(state.scores, state.winScore, state.names);
+  $('#resultsBody').innerHTML = rows.map(r => {
+    const tag = r.done ? '<span class="tag fin">已完成</span>'
+              : r.started ? '<span class="tag live">進行中</span>'
+              : r.ready ? '<span class="tag">未開始</span>'
+              : '<span class="tag">待定</span>';
+    const noTxt = (MATCH_DEFS[r.id].r === 'F' || MATCH_DEFS[r.id].r === 'T') ? '—' : r.no;
+    return '<tr class="' + (r.done ? 'done' : '') + '">' +
+      '<td>' + r.round + '</td>' +
+      '<td>' + noTxt + '</td>' +
+      '<td>' + escapeHtml(r.aName) + '</td>' +
+      '<td>' + r.score + '</td>' +
+      '<td>' + escapeHtml(r.bName) + '</td>' +
+      '<td class="' + (r.done ? 'win' : '') + '">' + escapeHtml(r.winName) + '</td>' +
+      '<td>' + tag + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+/* ===================== 設定 ===================== */
+
+function renderSettings(){
+  $('#setTitle').value = state.title;
+  $('#setWinScore').value = state.winScore;
+  const seeds = Object.keys(DEFAULT_NAMES).map(Number).sort((a,b) => a-b);
+  $('#nameGrid').innerHTML = seeds.map(seed =>
+    '<label class="name-item"><span class="s">#' + seed + '</span>' +
+    '<input type="text" data-seed="' + seed + '" value="' + escapeHtml(state.names[seed] || '') + '"></label>'
+  ).join('');
+}
+
+/* ===================== 匯出 / 列印 ===================== */
+
+function downloadFile(name, content, mime){
+  const blob = new Blob([content], {type: mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+
+function stamp(){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes());
+}
+
+function exportCSV(){
+  const rows = buildResultRows(state.scores, state.winScore, state.names);
+  const head = ['輪次','場次','選手A','得分A','得分B','選手B','勝方','狀態'];
+  const lines = [head.join(',')];
+  for (const r of rows){
+    const noTxt = (MATCH_DEFS[r.id].r === 'F' || MATCH_DEFS[r.id].r === 'T') ? '' : r.no;
+    const [sa, sb] = r.started ? r.score.split(' : ') : ['',''];
+    const q = v => '"' + String(v).replace(/"/g,'""') + '"';
+    lines.push([r.round, noTxt, r.aName, sa, sb, r.bName, r.winName, r.status].map(q).join(','));
+  }
+  downloadFile('陀螺大賽賽果_' + stamp() + '.csv', '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+function exportJSON(){
+  downloadFile('陀螺大賽備份_' + stamp() + '.json', JSON.stringify(state, null, 2), 'application/json');
+}
+
+function printResults(){
+  const st = standings(state.scores, state.winScore, state.names);
+  const rows = buildResultRows(state.scores, state.winScore, state.names);
+  const now = new Date();
+  const p = n => String(n).padStart(2,'0');
+  const nowTxt = now.getFullYear() + '-' + p(now.getMonth()+1) + '-' + p(now.getDate()) + ' ' + p(now.getHours()) + ':' + p(now.getMinutes());
+  let html = '<h1>' + escapeHtml(state.title) + ' — 成績表</h1>' +
+    '<div class="meta">列印時間：' + nowTxt + ' · 賽制：單淘汰、先取 ' + state.winScore + ' 分 · 含季軍賽</div>' +
+    '<h2>名次</h2>' +
+    '<p class="podline">🥇 冠軍：' + escapeHtml(st.champion || '待定') + '</p>' +
+    '<p class="podline">🥈 亞軍：' + escapeHtml(st.runnerUp || '待定') + '</p>' +
+    '<p class="podline">🥉 季軍：' + escapeHtml(st.third || '待定') + '</p>' +
+    '<p class="podline">4️⃣ 殿軍：' + escapeHtml(st.fourth || '待定') + '</p>' +
+    '<h2>全部賽果</h2>' +
+    '<table><thead><tr><th>輪次</th><th>場次</th><th>選手A</th><th>比分</th><th>選手B</th><th>勝方</th><th>狀態</th></tr></thead><tbody>';
+  for (const r of rows){
+    const noTxt = (MATCH_DEFS[r.id].r === 'F' || MATCH_DEFS[r.id].r === 'T') ? '—' : r.no;
+    html += '<tr><td>' + r.round + '</td><td>' + noTxt + '</td><td>' + escapeHtml(r.aName) + '</td><td>' + r.score + '</td><td>' + escapeHtml(r.bName) + '</td><td>' + escapeHtml(r.winName) + '</td><td>' + r.status + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  $('#printArea').innerHTML = html;
+  window.print();
+}
+
+/* ===================== 總渲染 ===================== */
+
+function renderHeader(){
+  $('#appTitle').textContent = state.title;
+  $('#ruleBadge').textContent = '先取 ' + state.winScore + ' 分制';
+  updateSaveInfo();
+}
+
+function renderAll(opts = {}){
+  renderHeader();
+  renderBracket();
+  renderBoard();
+  renderStandings();
+  if (!opts.skipSettings) renderSettings();
+}
+
+/* ===================== 事件綁定 ===================== */
+
+function bindEvents(){
+  // 分頁
+  document.querySelectorAll('nav.tabs button').forEach(b => {
+    b.addEventListener('click', () => switchTab(b.dataset.tab));
+  });
+
+  // 對陣圖點擊
+  const openBoard = e => {
+    const card = e.target.closest('.match');
+    if (!card) return;
+    sel = card.dataset.id;
+    switchTab('board');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  };
+  $('#bracketGrid').addEventListener('click', openBoard);
+  $('#qualsRow').addEventListener('click', openBoard);
+
+  // 記分板 chips
+  $('#boardChips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    sel = chip.dataset.id;
+    renderAll();
+  });
+
+  // 分數操作
+  $('#sideA').addEventListener('click', () => {
+    if (!sel) return;
+    const R = resolveAll(state.scores, state.winScore);
+    const m = R[sel];
+    if (!m.aSeed || !m.bSeed){ toast('此場選手尚未確定'); return; }
+    if (m.winner) return;
+    trySetScores(sel, [m.sa + 1, m.sb]);
+  });
+  $('#sideB').addEventListener('click', () => {
+    if (!sel) return;
+    const R = resolveAll(state.scores, state.winScore);
+    const m = R[sel];
+    if (!m.aSeed || !m.bSeed){ toast('此場選手尚未確定'); return; }
+    if (m.winner) return;
+    trySetScores(sel, [m.sa, m.sb + 1]);
+  });
+  $('#btnMinusA').addEventListener('click', () => {
+    if (!sel) return;
+    const [sa, sb] = scoreOf(sel);
+    trySetScores(sel, [Math.max(0, sa - 1), sb]);
+  });
+  $('#btnMinusB').addEventListener('click', () => {
+    if (!sel) return;
+    const [sa, sb] = scoreOf(sel);
+    trySetScores(sel, [sa, Math.max(0, sb - 1)]);
+  });
+  $('#btnResetMatch').addEventListener('click', async () => {
+    if (!sel) return;
+    const ok = await confirmModal({
+      title: '重設此場',
+      message: '確定要將「' + matchLabelOf(sel) + '」的比分重設為 0:0 嗎？',
+      confirmText: '重設',
+      danger: true
+    });
+    if (ok) trySetScores(sel, [0,0]);
+  });
+  $('#btnNext').addEventListener('click', () => {
+    const id = nextReadyMatch();
+    if (!id){ toast('🎉 目前沒有待進行的比賽'); return; }
+    sel = id;
+    renderAll();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  });
+
+  // 名次頁
+  $('#btnPrint').addEventListener('click', printResults);
+  $('#btnCsv').addEventListener('click', exportCSV);
+  $('#btnJson').addEventListener('click', exportJSON);
+  $('#btnShare').addEventListener('click', async () => {
+    const link = buildShareLink();
+    try{
+      await navigator.clipboard.writeText(link);
+      toast('已複製分享連結！貼給別人就能看到目前比分');
+    }catch(err){
+      window.prompt('複製這個連結分享給別人：', link);
+    }
+  });
+
+  // 設定頁
+  $('#setTitle').addEventListener('input', e => {
+    state.title = e.target.value;
+    renderHeader();
+    debounceSave();
+  });
+  $('#setWinScore').addEventListener('change', async e => {
+    const v = parseInt(e.target.value, 10);
+    if (!Number.isFinite(v) || v < 1 || v > 99){ e.target.value = state.winScore; return; }
+    const ok = await trySetWinScore(v);
+    if (!ok) e.target.value = state.winScore;
+  });
+  $('#nameGrid').addEventListener('input', e => {
+    const input = e.target.closest('input[data-seed]');
+    if (!input) return;
+    state.names[input.dataset.seed] = input.value;
+    renderAll({skipSettings: true});
+    debounceSave();
+  });
+  $('#btnResetAll').addEventListener('click', async () => {
+    const ok = await confirmModal({
+      title: '重設所有比分',
+      message: '這會清除全部比賽比分（名單與設定保留），且無法復原。\n\n確定要重設嗎？',
+      confirmText: '全部重設',
+      danger: true
+    });
+    if (!ok) return;
+    state.scores = {};
+    save();
+    renderAll();
+    toast('已重設所有比分');
+  });
+  $('#btnImport').addEventListener('click', () => $('#fileImport').click());
+  $('#fileImport').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try{
+      const obj = JSON.parse(await f.text());
+      if (!obj || typeof obj !== 'object') throw new Error('bad');
+      const st = freshState();
+      if (obj.title) st.title = String(obj.title);
+      if (Number.isFinite(obj.winScore)) st.winScore = Math.max(1, Math.min(99, Math.floor(obj.winScore)));
+      if (obj.names && typeof obj.names === 'object'){
+        for (const key in obj.names){
+          if (key in DEFAULT_NAMES) st.names[key] = String(obj.names[key]);
+        }
+      }
+      st.scores = sanitizeScores(obj.scores);
+      state = st;
+      save();
+      renderAll();
+      toast('已成功匯入備份');
+    }catch(err){
+      toast('匯入失敗：檔案格式不正確');
+    }
+    e.target.value = '';
+  });
+
+  // Modal
+  $('#modalOk').addEventListener('click', () => closeModal(true));
+  $('#modalCancel').addEventListener('click', () => closeModal(false));
+  $('#modal').addEventListener('click', e => { if (e.target === $('#modal')) closeModal(false); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('#modal').classList.contains('hidden')) closeModal(false);
+  });
+}
+
+/* ===================== 啟動 ===================== */
+
+sel = firstReady(state.scores, state.winScore);
+bindEvents();
+renderAll();
+if (sharedLoaded){ save(); toast('已載入分享連結中的比分'); }
+</script>
+</body>
+</html>
