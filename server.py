@@ -9,8 +9,14 @@ import os
 import socket
 import sys
 import threading
+import webbrowser
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse
+
+try:
+    import qrcode
+except ImportError:
+    qrcode = None
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(BASE, 'state.json')
@@ -110,22 +116,34 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def lan_ips():
+    primary = None
     ips = set()
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(('8.8.8.8', 80))
-        ips.add(s.getsockname()[0])
+        primary = s.getsockname()[0]
         s.close()
     except Exception:
         pass
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
             ip = info[4][0]
-            if not ip.startswith('127.'):
+            if not ip.startswith('127.') and not ip.startswith('169.254.'):
                 ips.add(ip)
     except Exception:
         pass
-    return sorted(ips)
+    if primary:
+        ips.discard(primary)
+
+    def score(ip):
+        if ip.startswith('192.168.'):
+            return 0
+        if ip.startswith('10.'):
+            return 1
+        return 2  # 172.x 常見於虛擬網卡，排最後
+
+    rest = sorted(ips, key=score)
+    return ([primary] if primary else []) + rest
 
 
 def main():
@@ -152,14 +170,31 @@ def main():
     print()
     print('  其他人（手機 / 平板 / 電腦）連上同一個 Wi-Fi，')
     print('  用瀏覽器打開下面任一網址：')
-    for ip in lan_ips():
+    ips = lan_ips()
+    for ip in ips:
         print('      http://%s:%d' % (ip, port))
     print()
     print('  ✔ 所有裝置的比分會即時同步')
     print('  ✔ 關掉視窗後再開，資料還在（state.json）')
     print()
+    if qrcode is not None and ips:
+        try:
+            print('  手機相機掃描下面的 QR Code 就能直接打開：')
+            print()
+            qr = qrcode.QRCode(border=1)
+            qr.add_data('http://%s:%d' % (ips[0], port))
+            qr.make(fit=True)
+            qr.print_ascii(invert=True)
+            print()
+        except Exception:
+            pass
     print('  （要結束請按 Ctrl+C，或直接關掉這個視窗）')
     print('=' * 56)
+    if os.environ.get('NO_BROWSER') != '1':
+        try:
+            webbrowser.open('http://localhost:%d' % port)
+        except Exception:
+            pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
