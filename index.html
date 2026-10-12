@@ -77,6 +77,7 @@ h2 small{font-weight:400;color:var(--muted);font-size:12px}
 }
 .slotbox.clickable{cursor:pointer;transition:border-color .12s, box-shadow .12s}
 .slotbox.clickable:hover{border-color:#93c5fd;box-shadow:0 2px 8px rgba(37,99,235,.16)}
+.slotbox.winpick:hover{border-color:#86efac;box-shadow:0 2px 8px rgba(22,163,74,.2)}
 .slotbox .seed{font-size:9.5px;color:#94a3b8;min-width:15px;text-align:right;font-variant-numeric:tabular-nums}
 .slotbox .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slotbox .sc{font-weight:700;color:#475569;font-size:12px;font-variant-numeric:tabular-nums}
@@ -273,7 +274,7 @@ table.results td.win{font-weight:700;color:#15803d}
         <div id="bracketGrid" class="bracket-grid-pdf"></div>
       </div>
     </div>
-    <p class="hint" style="margin-top:10px">點擊任一組框框即可到「記分板」記分；🟩＝勝方、🟦＝輪空直接晉級、虛線＝空籤位。排版依原對陣表：左半區 ↔ 右半區、中央決賽。</p>
+    <p class="hint" id="bracketHint" style="margin-top:10px"></p>
   </section>
 
   <section id="tab-board" class="tab-panel">
@@ -350,7 +351,7 @@ table.results td.win{font-weight:700;color:#15803d}
       <h2>資料管理</h2>
       <button class="btn" id="btnImport">匯入備份…</button>
       <input id="fileImport" type="file" accept=".json,application/json" class="hidden">
-      <button class="btn danger" id="btnResetAll">重設所有比分</button>
+      <button class="btn danger" id="btnResetAll">清除所有結果</button>
       <p class="hint" style="margin-top:8px">所有資料自動存在本機瀏覽器（離線可用）；建議賽前先按「匯出備份」保存一份。</p>
     </div>
   </section>
@@ -1155,8 +1156,11 @@ function renderBracket(){
     if (o.stubL) cls.push('stubL');
     if (o.stubR) cls.push('stubR');
     if (o.sel) cls.push('sel');
+    if (o.winpick) cls.push('winpick');
+    if (o.winpick && o.name) o.title = '點一下＝宣告 ' + o.name + ' 勝出';
     let html = '<div class="' + cls.join(' ') + '"';
     if (o.match) html += ' data-match="' + o.match + '"';
+    if (o.side) html += ' data-side="' + o.side + '"';
     if (o.title) html += ' title="' + escapeHtml(o.title) + '"';
     html += '>';
     if (o.seed) html += '<span class="seed">' + o.seed + '</span>';
@@ -1170,6 +1174,8 @@ function renderBracket(){
   const cell = (col, row, span, inner, extraCls) =>
     '<div class="bcell ' + (extraCls || '') + '" style="grid-column:' + col + ';grid-row:' + row + ' / span ' + span + '">' + inner + '</div>';
 
+  const winPick = uiMode === 'win';
+
   /* 一場比賽的兩個框（上下）；side：'L' 左半（連接線在左）、'R' 右半（連接線在右） */
   const matchPair = (id, col, rowA, spanA, rowB, spanB, side) => {
     const m = R[id];
@@ -1178,8 +1184,8 @@ function renderBracket(){
     const mk = (key, seed, row, span, sc) => cell(col, row, span, box({
       seed: seed, name: nameOf(seed, state.names), score: sc, showScore: hasScores,
       state: m.winner ? (m.winner === key ? 'win' : 'lose') : '',
-      match: id, tbd: !seed, stubL: true, stubR: true,
-      sel: sel === id, title: matchLabelOf(id)
+      match: id, side: key, tbd: !seed, stubL: true, stubR: true,
+      sel: sel === id, title: matchLabelOf(id), winpick: winPick
     }), recv);
     return mk('a', m.aSeed, rowA, spanA, m.sa) + mk('b', m.bSeed, rowB, spanB, m.sb);
   };
@@ -1192,6 +1198,8 @@ function renderBracket(){
       const m = R[qid];
       const key = (s % 2 === 1) ? 'a' : 'b';
       o.match = qid;
+      o.side = key;
+      o.winpick = winPick;
       o.title = matchLabelOf(qid);
       o.sel = sel === qid;
       if (m.winner) o.state = (m.winner === key) ? 'win' : 'lose';
@@ -1225,8 +1233,8 @@ function renderBracket(){
     const fbox = (key, seed, sc, col, stub, recv) => cell(col, 1, 32, box({
       seed: seed, name: nameOf(seed, state.names), score: sc, showScore: hasScores,
       state: m.winner ? (m.winner === key ? 'win' : 'lose') : '',
-      match: 'F-1', tbd: !seed, stubL: stub === 'L', stubR: stub === 'R',
-      sel: sel === 'F-1', title: matchLabelOf('F-1')
+      match: 'F-1', side: key, tbd: !seed, stubL: stub === 'L', stubR: stub === 'R',
+      sel: sel === 'F-1', title: matchLabelOf('F-1'), winpick: winPick
     }), recv);
     cells.push(fbox('a', m.aSeed, m.sa, 6, 'L', 'recvL'));
     cells.push(fbox('b', m.bSeed, m.sb, 7, 'R', 'recvR'));
@@ -1252,6 +1260,8 @@ function renderBracket(){
       const m = R[qid];
       const key = (s % 2 === 1) ? 'a' : 'b';
       o.match = qid;
+      o.side = key;
+      o.winpick = winPick;
       o.title = matchLabelOf(qid);
       o.sel = sel === qid;
       if (m.winner) o.state = (m.winner === key) ? 'win' : 'lose';
@@ -1289,7 +1299,8 @@ function renderBracket(){
   const tBox = (key, seed, sc) => box({
     seed: seed, name: nameOf(seed, state.names), score: sc, showScore: tStarted,
     state: t.winner ? (t.winner === key ? 'win' : 'lose') : '',
-    match: 'T-1', tbd: !seed, sel: sel === 'T-1', title: matchLabelOf('T-1')
+    match: 'T-1', side: key, tbd: !seed, sel: sel === 'T-1',
+    title: matchLabelOf('T-1'), winpick: winPick
   });
   cells.push(
     '<div class="bcell" style="grid-column:6 / span 2;grid-row:22 / span 11">' +
@@ -1573,6 +1584,12 @@ function renderAll(opts = {}){
   renderBoard();
   renderStandings();
   if (!opts.skipSettings) renderSettings();
+  const bh = document.getElementById('bracketHint');
+  if (bh){
+    bh.textContent = uiMode === 'win'
+      ? '點選選手框框＝直接宣告他獲勝（不需輸入分數）；🟩＝勝方、🟦＝輪空直接晉級。排版依原對陣表：左半區 ↔ 右半區、中央決賽。'
+      : '點擊任一組框框即可到「記分板」記分；🟩＝勝方、🟦＝輪空直接晉級、虛線＝空籤位。排版依原對陣表：左半區 ↔ 右半區、中央決賽。';
+  }
 }
 
 /* ===================== 事件綁定 ===================== */
@@ -1605,11 +1622,24 @@ function bindEvents(){
   });
   window.addEventListener('resize', () => { if (zoomMode === 'fit') applyZoom(); });
 
-  // 對陣圖點擊（點籤位框框 → 開對應比賽）
+  // 對陣圖點擊：計分模式 → 開記分板；點選模式 → 直接宣告勝方
   const openBoard = e => {
     const card = e.target.closest('.slotbox[data-match]');
     if (!card) return;
-    sel = card.dataset.match;
+    const id = card.dataset.match;
+    if (uiMode === 'win'){
+      const R = resolveAll(state.scores, state.winScore);
+      const m = R[id];
+      const side = card.dataset.side;
+      if (!side) return;
+      const seedFor = side === 'a' ? m.aSeed : m.bSeed;
+      if (!seedFor){ toast('此選手尚未確定'); return; }
+      if (m.sa > 0 || m.sb > 0){ sel = id; switchTab('board'); return; }
+      if (m.winner === side){ toast('這一位已經是勝方 👍'); return; }
+      declareWinner(id, side);
+      return;
+    }
+    sel = id;
     switchTab('board');
     window.scrollTo({top: 0, behavior: 'smooth'});
   };
@@ -1710,16 +1740,17 @@ function bindEvents(){
   });
   $('#btnResetAll').addEventListener('click', async () => {
     const ok = await confirmModal({
-      title: '重設所有比分',
-      message: '這會清除全部比賽比分（名單與設定保留），且無法復原。\n\n確定要重設嗎？',
-      confirmText: '全部重設',
+      title: '清除所有結果',
+      message: '這會清除全部比分與「點選勝方」的結果（選手名單與設定保留），且無法復原。\n\n確定要清除嗎？',
+      confirmText: '全部清除',
       danger: true
     });
     if (!ok) return;
     state.scores = {};
+    state.winners = {};
     save();
     renderAll();
-    toast('已重設所有比分');
+    toast('已清除所有比分與勝方結果');
   });
   $('#btnImport').addEventListener('click', () => $('#fileImport').click());
   $('#fileImport').addEventListener('change', async e => {
