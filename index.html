@@ -1050,6 +1050,17 @@ async function trySetScores(id, next){
   }
   save();
   renderAll();
+
+  // 剛好達到獲勝分數 → 稍等一下就自動回到對陣圖
+  const decidedNow = !!resolveAll(state.scores, state.winScore)[id].winner;
+  if (!curWin && decidedNow && uiMode === 'score'){
+    setTimeout(() => {
+      if (uiMode === 'score' && document.querySelector('#tab-board').classList.contains('active')){
+        switchTab('bracket');
+        window.scrollTo({top: 0, behavior: 'smooth'});
+      }
+    }, 1500);
+  }
 }
 
 /* 點選勝利者／取消結果：套用變更並處理後續清除 */
